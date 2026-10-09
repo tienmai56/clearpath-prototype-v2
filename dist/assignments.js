@@ -30,7 +30,7 @@ function assignmentSetupForm(draft,popup=false){
  <div class="field"><label for="${prefix}-title">Title</label><input id="${prefix}-title" name="title" value="${esc(draft.title)}" required maxlength="100"></div>
  <div class="field"><label for="${prefix}-source">Lesson content or passage</label><textarea class="draft-input" id="${prefix}-source" name="source" required maxlength="4000">${esc(draft.source)}</textarea></div>
  <details class="disclosure assignment-options"><summary>Draft options</summary><div class="field"><label for="${prefix}-questions">Number of prompts</label><select id="${prefix}-questions" name="questions">${[3,5].map(n=>`<option value="${n}" ${+draft.questions===n?'selected':''}>${n} prompts</option>`).join('')}</select></div><div class="field"><label for="${prefix}-context">Instructional guidance</label><textarea id="${prefix}-context" name="context" rows="3" maxlength="4000" placeholder="e.g. Show one direction at a time">${esc(draft.context||'')}</textarea></div></details>
- ${draft.context?'<p class="guidance-included">Instructional guidance is included in draft options.</p>':''}
+ ${draft.context?'<p class="guidance-included">Latest instructional guidance is included in draft options.</p>':''}
  ${!popup?`<div class="optional-variations"><label><input type="checkbox" name="withVariations" data-assignment-field="withVariations" ${draft.withVariations?'checked':''}><span>Create two variations <small>Optional</small></span></label><div class="field variation-setting" ${draft.withVariations?'':'hidden'}><label for="${prefix}-change">Change to compare</label><select id="${prefix}-change" name="change"><option value="${esc(lessonDefaults[draft.domain].change)}">${esc(lessonDefaults[draft.domain].change)}</option><option value="Show one instruction at a time" ${draft.change==='Show one instruction at a time'?'selected':''}>Show one instruction at a time</option></select></div></div>`:''}
  <div id="${popup?'draft-error':'lesson-error'}"></div><div class="form-foot"><span class="caption">Demo: AI drafting is simulated.</span><button class="btn primary" type="submit" data-generate-material>${draft.withVariations&&!popup?'Generate variations':'Generate '+draft.kind.toLowerCase()}</button></div></form>`;
 }
@@ -90,7 +90,7 @@ function submitAssignmentSetup(values,form){
  if(!ctx.popup){state.lesson=structuredClone(draft);persist();}
  const id=ctx.popup&&assignmentFlow.recordId?assignmentFlow.recordId:uid('assignment');
  const record={id,kind:draft.kind,title:draft.title,model:structuredClone(draft),studentIds:draft.studentIds.slice(),objectiveIds:structuredClone(draft.objectiveIds),html:buildAssignmentHTML(draft),status:'draft',updatedAt:new Date().toISOString()};
- const index=state.assignments.findIndex(x=>x.id===id);if(index<0)state.assignments.unshift(record);else state.assignments[index]=record;persist();openAssignmentEditor(id);
+ const index=state.assignments.findIndex(x=>x.id===id);if(index<0)state.assignments.unshift(record);else state.assignments[index]=record;completeGuidanceDraft(draft,record);persist();render();openAssignmentEditor(id);
 }
 function buildAssignmentHTML(d){
  const count=+d.questions||3,custom=d.source!==lessonDefaults[d.domain].source;
@@ -103,10 +103,10 @@ function buildAssignmentHTML(d){
   math:['How many seeds did Maya have at first?','How many seeds did the friend bring?','How many seeds did they have altogether?','How many seeds remained after planting 6?','Show how you checked your answer.'],
   writing:['Say a complete idea about something you saw in a garden.','Write your idea as a sentence.','Include who or what you saw and what happened.','Check the capital letter and ending punctuation.','Read your sentence and add a detail.']
  }[d.domain];
- const context=(d.context||'').toLowerCase(),oneStep=/one step|one direction|one instruction/.test(context),oral=/oral|aloud|rehearsal/.test(context),visual=/picture|visual/.test(context);
+ const context=(d.context||'').toLowerCase(),oneStep=/one step|one direction|one instruction/.test(context),oral=/oral|aloud|rehearsal/.test(context),visual=/picture|visual/.test(context)&&!/clutter/.test(context),modeled=/model.*(first|step)/.test(context);
  const source=esc(d.source).split(/\n+/).map(s=>`<p>${s}</p>`).join('');
  const cues=visual&&!custom?`<p><strong>Picture guide:</strong> ${d.domain==='reading'?'🌱 Seed → 🌧 Rain → 🌿 New leaf':d.domain==='math'?'🌱 8 seeds + 🌱 5 seeds':'🌷 Flower · 🍃 Leaf · 🐦 Bird'}</p>`:'';
- const directions=`${d.kind==='assessment'?'Answer each question.':'Read the task and complete each step.'}${oneStep?' Work through one step at a time.':''}${oral?' Say your answer aloud before writing.':''}`;
+ const directions=`${d.kind==='assessment'?'Answer each question.':'Read the task and complete each step.'}${oneStep?' Work through one step at a time.':''}${oral?' Say your answer aloud before writing.':''}${modeled?' Work through the first step with your teacher, then try the next problem.':''}`;
  const items=prompts.slice(0,count).map((q,i)=>oneStep?`<h3>Step ${i+1}</h3><p>${esc(q)}</p><p>________________________________________________</p>`:`<li><p>${esc(q)}</p><p>________________________________________________</p></li>`).join('');
  return sanitizeRichHTML(`<h2>${esc(d.title)}</h2><p>Name: ____________________ &nbsp; Date: ______________</p>${cues}${source}<h3>Directions</h3><p>${directions}</p>${oneStep?items:`<ol>${items}</ol>`}`);
 }

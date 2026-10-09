@@ -25,8 +25,10 @@ Use a local HTTP server for reliable browser storage and file attachment behavio
 - `dist/app.js` — fictional student data, IEP plans, class roster, progress, notes and comparisons.
 - `dist/progress.js` — progress popup, uploads, mobile camera capture and evidence storage.
 - `dist/assignments.js` — assignment/assessment drafting, optional variations and rich text editing.
+- `dist/guidance.js` — note-driven guidance updates, unread state, source-linked review and revised drafts.
+- `dist/trials.js` — dated teaching plans, lesson assignments, class progress recording and review choices.
 
-Keep all five files together. There are no external image, font or package dependencies.
+Keep all seven files together. There are no external image, font or package dependencies.
 
 ## Included flows
 
@@ -36,16 +38,22 @@ Keep all five files together. There are no external image, font or package depen
 - Read weekly stakeholder notes, illustrated author profiles and a cited paragraph summary.
 - Create guided materials from Notes without leaving the student page.
 - Generate assignments or assessments for selected students in a rich text editor.
-- Optionally create two variations, randomize same-grade students, and compare observations.
+- Optionally create two lesson versions, assign same-grade students, and set teaching and review dates.
+- Start a plan to make assigned lessons current for the selected objectives; open and print each lesson.
+- Record progress for the whole class: choose a student for evidence entry or enter several scores together.
+- Review results and choose which lesson each student will use going forward.
+- See new stakeholder inputs in My class and Notes, review updated guidance and its citations, then create a revised draft.
 - Save and reopen drafts; print assignments.
 
 ## Prototype behavior
 
-All seeded classroom records are fictional. AI drafting and note summaries use editable demo templates/rules, not a live model. Review generated content before use.
+All seeded classroom records are fictional. AI drafting, automatic guidance and note summaries use editable demo templates/rules, not a live model. Review generated content before use.
+
+Guidance refreshes locally whenever a note is saved and when the app opens. There is no live background AI or stakeholder ingestion service. New-input markers remain until the teacher explicitly reviews the update or creates a revised draft. Ava and Milo have fictional unread updates to demonstrate the flow. Existing browser data migrates without a reset.
 
 Edits are saved in the current browser using localStorage (`clearpath-prototype-v1`). Uploaded evidence uses IndexedDB (`clearpath-evidence`). This repository contains the code and fictional seed data, not the records or uploads entered in a particular browser. There is no shared database, login system, OCR, or transfer of files between devices. Camera capture depends on the phone/browser.
 
-The rich text toolbar uses the browser's native editing commands. Functional code checks passed; live visual, hardware camera and browser formatting checks were unavailable.
+The rich text toolbar uses the browser's native editing commands. 36 functional code checks passed; live visual, hardware camera and browser formatting checks were unavailable.
 
 Use **About this prototype → Reset demo changes** to clear local demo edits.
 
@@ -55,4 +63,4 @@ Upload the contents of `dist` to a static web host. The app uses hash-based navi
 
 ## Version
 
-Source commit: `e566cfaf162621401b5f93a4d52b88bdf5b36064`
+Source commit: `be9d2e879d33d9287ef215ec1e6f3727983a1579`

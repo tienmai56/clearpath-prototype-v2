@@ -9,12 +9,13 @@ const EVIDENCE_COUNT=5;
 
 function objectivePosition(id,g,o){return `Goal ${goalPlansFor(id).indexOf(g)+1} · Objective ${g.objectives.indexOf(o)+1}`}
 function openProgressModal(id,comparison=''){
+ if(!comparison){const current=currentTeachingPlan(id,activeObjective(id)?.id);if(current&&!current.completedAt)comparison=current.id;}
  const c=state.comparisons.find(x=>x.id===comparison),target=c?.objectiveIds?.[id];
  let g=target?goalPlansFor(id).find(g=>g.objectives.some(o=>o.id===target)):activeGoal(id);
  let o=target?g?.objectives.find(o=>o.id===target):activeObjective(id);
  if(!g||!o||o.status!=='approved')return toast('Establish an objective in the IEP plan first.');
  clearProgressCapture();
- progressCapture={student:id,goal:g.id,objective:o.id,comparison,step:1,mode:'upload',files:[],values:{correct:'',attempts:'5',support:'independent',date:TODAY,note:'',phase:'followup'},saving:false};
+ progressCapture={student:id,goal:g.id,objective:o.id,comparison,step:1,mode:'upload',files:[],values:{correct:'',attempts:'5',support:'independent',date:TODAY,note:'',phase:c?.baseline==='new'&&trialBaseline(c,id)===null?'baseline':'followup'},saving:false};
  renderProgressModal();
 }
 function renderProgressModal(){
@@ -44,7 +45,7 @@ function recordProgressStep(g,o){
  <div class="field-row"><div class="field"><label for="log-correct">Independent correct answers</label><input id="log-correct" name="correct" type="number" min="0" max="100" required inputmode="numeric" value="${esc(v.correct)}" placeholder="0"></div><div class="field"><label for="log-attempts">Total opportunities</label><input id="log-attempts" name="attempts" type="number" min="1" max="100" value="${esc(v.attempts)}" required inputmode="numeric"></div></div>
  <div id="score-preview" class="caption score-preview">${v.correct!==''?`${Math.round(+v.correct/+v.attempts*100)}% independent accuracy`:'Count answers completed without adult prompts.'}</div>
  <div class="field-row"><div class="field"><label for="log-support">Additional support</label><select id="log-support" name="support">${[['independent','None'],['verbal','Verbal prompts'],['guided','Guided support']].map(([key,text])=>`<option value="${key}" ${v.support===key?'selected':''}>${text}</option>`).join('')}</select></div><div class="field"><label for="log-date">Date</label><input id="log-date" name="date" type="date" max="${TODAY}" value="${esc(v.date)}" required></div></div>
- ${c?`<div class="field"><label for="log-phase">${esc(c.title)}</label><select id="log-phase" name="phase"><option value="followup" ${v.phase==='followup'?'selected':''}>Follow-up observation</option><option value="baseline" ${v.phase==='baseline'?'selected':''}>Baseline</option></select></div>`:'<input type="hidden" name="phase" value="followup">'}
+ ${c?`<div class="field"><label for="log-phase">${esc(c.title)}</label><select id="log-phase" name="phase"><option value="followup" ${v.phase==='followup'?'selected':''}>Progress check during this plan</option><option value="baseline" ${v.phase==='baseline'?'selected':''}>Starting result</option></select></div>`:'<input type="hidden" name="phase" value="followup">'}
  <details class="disclosure" ${v.note?'open':''}><summary>Add a note</summary><div class="field"><label for="log-note" class="sr-only">Observation</label><textarea id="log-note" name="note" rows="2" maxlength="2000" placeholder="What helped or made the task harder?">${esc(v.note)}</textarea></div></details>
  <div id="log-error" aria-live="polite"></div><div class="modal-foot capture-foot"><button type="button" class="btn" data-action="progress-back">${icon('back')} Back</button><button class="btn primary" type="submit">Save progress</button></div></form>`;
 }
@@ -129,10 +130,11 @@ function clearProgressCapture(){progressCapture=null;if(evidencePreviewURL){URL.
 async function saveProgressRecord(d,form){
  const p=progressCapture;if(!p||p.saving)return;
  const g=findGoal(d.student,d.goal),o=g?.objectives.find(o=>o.id===d.objective);
- if(!o||o.status!=='approved'||d.student!==p.student||d.objective!==p.objective)return formError('log-error','Select an established objective before recording progress.');
+ if(!o||o.status!=='approved'||d.student!==p.student||d.objective!==p.objective||d.comparison!==p.comparison)return formError('log-error','Select an established objective before recording progress.');
  const correct=+d.correct,attempts=+d.attempts;
  if(d.correct===''||!Number.isInteger(correct)||!Number.isInteger(attempts)||attempts<1||attempts>100||correct<0||correct>attempts)return formError('log-error','Correct answers must be between zero and the total.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(d.date)||Number.isNaN(Date.parse(d.date))||d.date>TODAY)return formError('log-error','Choose a date on or before today.');
+ const plan=state.comparisons.find(c=>c.id===p.comparison);if(plan&&d.phase!=='baseline'&&d.date<trialStart(plan))return formError('log-error','Choose a check date on or after this teaching plan starts.');
  if(p.mode!=='manual'&&!p.files.length)return formError('log-error','Go back and add a file, or choose Enter manually.');
  p.saving=true;
  const submit=form.querySelector?.('[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Saving…';}
@@ -142,7 +144,7 @@ async function saveProgressRecord(d,form){
   const record={...d,id:uid('log'),correct,attempts,score:Math.round(correct/attempts*100),attachments,entryMethod:p.mode,support:d.support==='verbal'?'Verbal prompts on other opportunities':d.support==='guided'?'Guided support on other opportunities':'No extra help'};
   state.logs.unshift(record);
   if(!persist()){state.logs=state.logs.filter(l=>l.id!==record.id);throw new Error('Progress could not be saved. Browser storage may be full.');}
-  p.saving=false;closeModal();render();toast('Progress saved.');
+  p.saving=false;const returnToClass=p.returnToClass,comparison=p.comparison;closeModal();render();if(returnToClass)openClassProgress(comparison);toast('Progress saved.');
  }catch(error){
   await removeEvidenceFiles(attachments.map(f=>f.id));p.saving=false;
   formError('log-error',error.message||'Files could not be saved. Try smaller files or enter manually.');

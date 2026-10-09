@@ -24,11 +24,12 @@ Use a local HTTP server for reliable browser storage and file attachment behavio
 - `dist/styles.css` — application layout, responsive styles and print layouts.
 - `dist/app.js` — fictional student data, IEP plans, class roster, progress, notes and comparisons.
 - `dist/progress.js` — progress popup, uploads, mobile camera capture and evidence storage.
-- `dist/assignments.js` — assignment/assessment drafting, optional variations and rich text editing.
+- `dist/assignments.js` — assignment/assessment generation, optional variations and rich text editing.
+- `dist/selection.js` — student picker and progressive goal/objective selection, shared by the page and popup.
 - `dist/guidance.js` — note-driven guidance updates, unread state, source-linked review and revised drafts.
 - `dist/trials.js` — dated teaching plans, lesson assignments, class progress recording and review choices.
 
-Keep all seven files together. There are no external image, font or package dependencies.
+Keep all eight files together. There are no external image, font or package dependencies.
 
 ## Included flows
 
@@ -37,8 +38,10 @@ Keep all seven files together. There are no external image, font or package depe
 - Attach PDF, JPG or PNG evidence, use a compatible phone camera, or enter manually.
 - Read weekly stakeholder notes, illustrated author profiles and a cited paragraph summary.
 - Create guided materials from Notes without leaving the student page.
-- Generate assignments or assessments for selected students in a rich text editor. Draft options and prompt-count controls are omitted; defaults and student guidance are applied automatically.
-- Optionally create two lesson versions, assign same-grade students, and set teaching and review dates.
+- Select students first, then choose each student’s goal, then an objective under that goal. Goals and objectives appear as earlier selections are completed.
+- Generate an assignment or assessment and edit it in the rich text popup. Draft options, prompt-count, grade and goal-area controls are omitted; defaults and student guidance are applied automatically.
+- Students with different goal areas receive separate sections in the generated document; their target mappings are retained.
+- Optionally enable **Try two lesson versions**, explained as a small classroom experiment. Select at least two students in the same grade with goals in the same area, generate the lessons, then assign students randomly and set teaching/review dates.
 - Start a plan to make assigned lessons current for the selected objectives; open and print each lesson.
 - Record progress for the whole class: choose a student for evidence entry or enter several scores together.
 - Review results and choose which lesson each student will use going forward.
@@ -63,4 +66,4 @@ Upload the contents of `dist` to a static web host. The app uses hash-based navi
 
 ## Version
 
-Source commit: `35e203e61f26e901f024e658534b22c2cde89ba7`
+Source commit: `e2ab5a56c3e8ab64a1e4535c9018fab52465eb43`

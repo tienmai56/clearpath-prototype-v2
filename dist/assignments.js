@@ -15,23 +15,6 @@ function createLessonDraft(domain='reading',context='',studentIds=[]){
 }
 function eligibleForDraft(draft){return alphabeticalStudents(students.filter(s=>s.grade===Number(draft.grade)&&lessonGoalsFor(s.id,draft.domain).length))}
 function draftObjectiveLabel(id,o){const gs=goalPlansFor(id),g=gs.find(g=>g.id===o.goalId);return `Goal ${gs.indexOf(g)+1} / Objective ${(g?.objectives.findIndex(x=>x.id===o.id)??0)+1} · ${o.skill}`}
-function assignmentObjectives(draft,prefix='lesson'){
- if(!draft.studentIds?.length)return '';
- return `<details class="disclosure lesson-objectives" ${draft.studentIds.length===1?'open':''}><summary>Target objectives · ${draft.studentIds.length} ${draft.studentIds.length===1?'student':'students'}</summary>${alphabeticalIds(draft.studentIds).map(id=>`<div class="field"><label for="${prefix}-objective-${id}">${esc(getStudent(id).name)}</label><select id="${prefix}-objective-${id}" data-assignment-objective="${id}">${lessonObjectiveOptions(id,draft.domain).map(o=>`<option value="${o.id}" ${draft.objectiveIds[id]===o.id?'selected':''}>${esc(draftObjectiveLabel(id,o))}</option>`).join('')}</select></div>`).join('')}</details>`;
-}
-function assignmentSetupForm(draft,popup=false){
- draft.studentIds ||= [];draft.objectiveIds ||= {};draft.kind ||= 'assignment';draft.questions ||= 3;
- const prefix=popup?'draft':'lesson';
- return `<form class="plain-form lesson-setup ${popup?'draft-popup-form':''}" id="${popup?'assignment-draft-form':'lesson-form'}" data-assignment-setup="${popup?'popup':'page'}">
- <div class="field-row"><div class="field"><label for="${prefix}-kind">Create</label><select id="${prefix}-kind" name="kind" data-assignment-field="kind"><option value="assignment" ${draft.kind==='assignment'?'selected':''}>Assignment</option><option value="assessment" ${draft.kind==='assessment'?'selected':''}>Assessment</option></select></div><div class="field"><label for="${prefix}-grade">Grade</label><select id="${prefix}-grade" name="grade" data-assignment-field="grade">${[...new Set(students.map(s=>s.grade))].sort((a,b)=>a-b).map(n=>`<option value="${n}" ${+draft.grade===n?'selected':''}>${gradeLabel(n)}</option>`).join('')}</select></div></div>
- <div class="field"><label for="${prefix}-domain">Goal area</label><select id="${prefix}-domain" name="domain" data-assignment-field="domain">${Object.entries(domainNames).map(([v,l])=>`<option value="${v}" ${draft.domain===v?'selected':''}>${l}</option>`).join('')}</select></div>
- <fieldset class="lesson-students"><legend>Students</legend><div class="cohort-chips">${eligibleForDraft(draft).map(s=>`<label class="student-chip"><input type="checkbox" name="lesson-student" value="${s.id}" ${draft.studentIds.includes(s.id)?'checked':''}>${avatar(s,'tiny')}${esc(s.name)}</label>`).join('')||'<p class="caption">No established objectives for this grade and goal area.</p>'}</div><div class="section-row"><span class="caption no-margin" data-selected-count>${draft.studentIds.length} selected</span><button type="button" class="text-btn" data-action="select-draft-students">Select all</button></div></fieldset>
- <div data-assignment-objectives>${assignmentObjectives(draft,prefix)}</div>
- <div class="field"><label for="${prefix}-title">Title</label><input id="${prefix}-title" name="title" value="${esc(draft.title)}" required maxlength="100"></div>
- <div class="field"><label for="${prefix}-source">Lesson content or passage</label><textarea class="draft-input" id="${prefix}-source" name="source" required maxlength="4000">${esc(draft.source)}</textarea></div>
- ${!popup?`<div class="optional-variations"><label><input type="checkbox" name="withVariations" data-assignment-field="withVariations" ${draft.withVariations?'checked':''}><span>Create two variations <small>Optional</small></span></label><div class="field variation-setting" ${draft.withVariations?'':'hidden'}><label for="${prefix}-change">Change to compare</label><select id="${prefix}-change" name="change"><option value="${esc(lessonDefaults[draft.domain].change)}">${esc(lessonDefaults[draft.domain].change)}</option><option value="Show one instruction at a time" ${draft.change==='Show one instruction at a time'?'selected':''}>Show one instruction at a time</option></select></div></div>`:''}
- <div id="${popup?'draft-error':'lesson-error'}"></div><div class="form-foot"><span class="caption">Demo: AI drafting is simulated.</span><button class="btn primary" type="submit" data-generate-material>${draft.withVariations&&!popup?'Generate variations':'Generate '+draft.kind.toLowerCase()}</button></div></form>`;
-}
 function openDraftingModal(id){
  const s=getStudent(id),g=activeGoal(id),o=activeObjective(id);
  if(!g||!o)return toast('Establish an objective in the IEP plan first.');
@@ -49,34 +32,21 @@ function preserveDraftInputs(model,form){
 function redrawDraft(ctx){if(ctx.popup)renderDraftingModal();else render()}
 function handleAssignmentChange(input){
  const form=input.closest?.('form[data-assignment-setup]');if(!form)return false;
- const ctx=draftContext(form),d=ctx.model;if(!d)return false;
- const key=input.dataset.assignmentField;
- if(key==='kind'){d.kind=input.value;d.questions=input.value==='assessment'?5:3;}
- else if(key==='withVariations'){d.withVariations=input.checked;const setting=form.querySelector('.variation-setting');if(setting)setting.hidden=!input.checked;}
- else if(key==='grade'||key==='domain'){
-  preserveDraftInputs(d,form);
-  if(key==='grade')d.grade=+input.value;
-  else{const defaults=lessonDefaults[input.value];Object.assign(d,{domain:input.value,title:defaults.title,source:defaults.source,change:defaults.change,context:''});}
-  d.studentIds=[];d.objectiveIds={};if(!ctx.popup){groups={a:[],b:[]};cohort=[];}redrawDraft(ctx);return true;
- }
- else if(input.name==='lesson-student'){
-  const id=input.value;d.studentIds=alphabeticalIds(input.checked?[...new Set([...d.studentIds,id])]:d.studentIds.filter(x=>x!==id));
-  if(input.checked)d.objectiveIds[id]=defaultLessonObjective(id,d.domain)?.id;else delete d.objectiveIds[id];
-  if(!ctx.popup){cohort=d.studentIds.slice();groups={a:[],b:[]};}
-  form.querySelector('[data-selected-count]').textContent=d.studentIds.length+' selected';form.querySelector('[data-assignment-objectives]').innerHTML=assignmentObjectives(d,ctx.popup?'draft':'lesson');return true;
- }else if(input.dataset.assignmentObjective){d.objectiveIds[input.dataset.assignmentObjective]=input.value;return true;}
- else return false;
- const button=form.querySelector('[data-generate-material]');if(button)button.textContent=d.withVariations&&!ctx.popup?'Generate variations':'Generate '+d.kind;
- return true;
+ const ctx=draftContext(form);if(!ctx.model)return false;
+ preserveDraftInputs(ctx.model,form);return handleAssignmentSelection(input,ctx);
 }
 function submitAssignmentSetup(values,form){
  const ctx=draftContext(form),draft=ctx.model,error=ctx.popup?'draft-error':'lesson-error';if(!draft)return;
  if(!draft.studentIds.length)return formError(error,'Select at least one student.');
- if(draft.studentIds.some(id=>!eligibleForDraft(draft).some(s=>s.id===id)))return formError(error,'Select students in this grade with established objectives.');
- if(draft.studentIds.some(id=>!lessonObjectiveOptions(id,draft.domain).some(o=>o.id===draft.objectiveIds[id])))return formError(error,'Choose an established objective for each student.');
- if(!values.title?.trim()||!values.source?.trim())return formError(error,'Enter a title and lesson content.');
- if(!['assignment','assessment'].includes(values.kind))return formError(error,'Choose an assignment or assessment.');
- Object.assign(draft,{title:values.title.trim(),source:values.source.trim(),kind:values.kind,questions:values.kind==='assessment'?5:3,withVariations:!ctx.popup&&(values.withVariations==='on'||values.withVariations==='true'),change:values.change||draft.change});
+ normalizeDraftSelection(draft);
+ if(!draftGoalsComplete(draft))return formError(error,'Select a goal for each student.');
+ if(!draftObjectivesComplete(draft))return formError(error,'Select an established objective from each chosen goal.');
+ const kind=values.kind||draft.kind;
+ if(!['assignment','assessment'].includes(kind))return formError(error,'Choose an assignment or assessment.');
+ const variations=!ctx.popup&&(values.withVariations==='on'||values.withVariations==='true');
+ if(variations&&!canCompareDraft(draft))return formError(error,'For an experiment, choose at least two students in the same grade with goals in the same area.');
+ syncDraftSelection(draft);
+ Object.assign(draft,{title:values.title?.trim()||draft.title,source:values.source?.trim()||draft.source,kind,questions:kind==='assessment'?5:3,withVariations:variations,change:values.change||draft.change});
  const original=lessonDefaults[draft.domain];draft.custom=draft.source!==original.source;
  if(draft.withVariations){
   draft.a=original.a;draft.b=draft.change==='Show one instruction at a time'?'One step at a time':original.b;
@@ -91,6 +61,11 @@ function submitAssignmentSetup(values,form){
  const index=state.assignments.findIndex(x=>x.id===id);if(index<0)state.assignments.unshift(record);else state.assignments[index]=record;completeGuidanceDraft(draft,record);persist();render();openAssignmentEditor(id);
 }
 function buildAssignmentHTML(d){
+ if(d.studentIds?.length>1)return sanitizeRichHTML(`<h2>${esc(d.title)}</h2>`+alphabeticalIds(d.studentIds).map(id=>{const model=materialForStudent(d,id),o=objectiveForDraft(d,id);return `<h3>${esc(getStudent(id).name)} · ${esc(domainNames[model.domain])}</h3>${o?`<p>Objective: ${esc(o.skill)}</p>`:''}`+buildStudentAssignmentHTML(model).replace(/^<h2>[\s\S]*?<\/h2>/,'');}).join(''));
+ const model=d.studentIds?.length===1?materialForStudent(d,d.studentIds[0]):d;
+ return buildStudentAssignmentHTML(model);
+}
+function buildStudentAssignmentHTML(d){
  const count=+d.questions||3,custom=d.source!==lessonDefaults[d.domain].source;
  const prompts=custom?{
   reading:['What happens first?','What happens next?','What happens at the end?','Put the main events in order.','Retell the sequence in your own words.'],
@@ -121,8 +96,8 @@ function richButton(command,label,title){return `<button type="button" class="ri
 function openAssignmentEditor(id){
  const record=state.assignments.find(a=>a.id===id);if(!record)return;
  assignmentFlow={stage:'editor',recordId:id,model:structuredClone(record.model)};richSelection=null;
- const names=alphabeticalIds(record.studentIds).map(id=>getStudent(id).name).join(', '),targets=[...new Set(record.studentIds.map(id=>lessonObjectiveOptions(id,record.model.domain).find(o=>o.id===record.objectiveIds[id])?.skill).filter(Boolean))];
- openModal(`${materialLabel(record.kind)} draft`,names,`<div class="assignment-editor-shell"><div class="editor-context"><span>${gradeLabel(record.model.grade)} · ${domainNames[record.model.domain]}</span><details><summary>Target objective${targets.length>1?'s':''}</summary><p>${targets.map(esc).join('; ')}</p></details></div><div class="rich-toolbar" role="toolbar" aria-label="Text formatting">${richButton('bold','<b>B</b>','Bold')}${richButton('italic','<i>I</i>','Italic')}${richButton('underline','<u>U</u>','Underline')}<span class="toolbar-divider"></span>${richButton('heading','H','Heading')}${richButton('paragraph','¶','Paragraph')}<span class="toolbar-divider"></span>${richButton('insertUnorderedList','• List','Bulleted list')}${richButton('insertOrderedList','1. List','Numbered list')}<span class="toolbar-divider"></span>${richButton('undo','↶','Undo')}${richButton('redo','↷','Redo')}</div><div class="assignment-paper"><div id="assignment-editor" class="rich-editor" contenteditable="true" role="textbox" aria-label="Edit assignment content" aria-multiline="true" spellcheck="true">${sanitizeRichHTML(record.html)}</div></div><div id="assignment-editor-error" aria-live="polite"></div><div class="editor-meta"><span id="assignment-save-state" role="status">Draft saved in this browser</span><span>Demo draft · Review before use</span></div><div class="modal-foot editor-footer"><button class="text-btn" data-action="edit-assignment-setup">Edit details</button><div class="actions">${btn(icon('print')+'Print','print-assignment')}${btn('Save '+record.kind,'save-assignment','primary')}</div></div></div>`,{wide:true,printable:true});
+ const names=alphabeticalIds(record.studentIds).map(id=>getStudent(id).name).join(', '),targets=record.studentIds.map(id=>{const o=objectiveForDraft(record.model,id);return o?getStudent(id).name+': '+o.skill:'';}).filter(Boolean);
+ openModal(`${materialLabel(record.kind)} draft`,names,`<div class="assignment-editor-shell"><div class="editor-context"><span>${draftGradeLabel(record.model)} · ${draftAreaLabel(record.model)}</span><details><summary>Target objective${targets.length>1?'s':''}</summary><p>${targets.map(esc).join('; ')}</p></details></div><div class="rich-toolbar" role="toolbar" aria-label="Text formatting">${richButton('bold','<b>B</b>','Bold')}${richButton('italic','<i>I</i>','Italic')}${richButton('underline','<u>U</u>','Underline')}<span class="toolbar-divider"></span>${richButton('heading','H','Heading')}${richButton('paragraph','¶','Paragraph')}<span class="toolbar-divider"></span>${richButton('insertUnorderedList','• List','Bulleted list')}${richButton('insertOrderedList','1. List','Numbered list')}<span class="toolbar-divider"></span>${richButton('undo','↶','Undo')}${richButton('redo','↷','Redo')}</div><div class="assignment-paper"><div id="assignment-editor" class="rich-editor" contenteditable="true" role="textbox" aria-label="Edit assignment content" aria-multiline="true" spellcheck="true">${sanitizeRichHTML(record.html)}</div></div><div id="assignment-editor-error" aria-live="polite"></div><div class="editor-meta"><span id="assignment-save-state" role="status">Draft saved in this browser</span><span>Demo draft · Review before use</span></div><div class="modal-foot editor-footer"><button class="text-btn" data-action="edit-assignment-setup">Change selections</button><div class="actions">${btn(icon('print')+'Print','print-assignment')}${btn('Save '+record.kind,'save-assignment','primary')}</div></div></div>`,{wide:true,printable:true});
 }
 function flushAssignmentEditor(finalize=false){
  if(assignmentFlow?.stage!=='editor')return true;
@@ -147,11 +122,9 @@ function formatAssignment(command){
  rememberRichSelection();queueAssignmentSave();
 }
 function handleAssignmentAction(action,el){
+ if(handleSelectionAction(action,el))return true;
  if(action==='guided-materials'){openDraftingModal(el.dataset.id);return true;}
  if(action==='open-assignment'){openAssignmentEditor(el.dataset.id);return true;}
- if(action==='select-draft-students'){
-  const form=el.closest('form'),ctx=draftContext(form);preserveDraftInputs(ctx.model,form);ctx.model.studentIds=eligibleForDraft(ctx.model).map(s=>s.id);for(const id of ctx.model.studentIds)ctx.model.objectiveIds[id]=defaultLessonObjective(id,ctx.model.domain)?.id;if(!ctx.popup){groups={a:[],b:[]};cohort=ctx.model.studentIds.slice();}redrawDraft(ctx);return true;
- }
  if(action==='rich-format'){formatAssignment(el.dataset.command);return true;}
  if(action==='save-assignment'){if(flushAssignmentEditor(true)){closeModal();render();toast('Material saved.');}return true;}
  if(action==='print-assignment'){if(flushAssignmentEditor())window.print();return true;}
@@ -161,11 +134,11 @@ function handleAssignmentAction(action,el){
  }
  return false;
 }
-function handleAssignmentInput(event){if(event.target.id==='assignment-editor'||event.target.closest?.('#assignment-editor')){queueAssignmentSave();return true;}return false;}
+function handleAssignmentInput(event){if(event.target.dataset?.assignmentSearch!==undefined){filterAssignmentStudents(event.target);return true;}if(event.target.id==='assignment-editor'||event.target.closest?.('#assignment-editor')){queueAssignmentSave();return true;}return false;}
 function savedMaterials(){
  const items=[...state.assignments.map(d=>({type:'single',...d})),...state.drafts.map(d=>({type:'variations',...d}))];
  if(!items.length)return `<div class="empty"><h3>No saved materials</h3><p class="small">Assignments, assessments and variations appear here.</p><div class="top-space">${btn('Create assignment','new-lesson','primary')}</div></div>`;
- return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${d.type==='single'?materialLabel(d.kind):'Two variations'} · ${gradeLabel(d.type==='single'?d.model.grade:d.grade)} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),d.type==='single'?'open-assignment':'open-draft','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
+ return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${d.type==='single'?materialLabel(d.kind):'Two variations'} · ${d.type==='single'?draftGradeLabel(d.model):gradeLabel(d.grade)} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),d.type==='single'?'open-assignment':'open-draft','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
 }
 document.addEventListener('selectionchange',rememberRichSelection);
 document.addEventListener('mousedown',e=>{if(e.target.closest?.('.rich-toolbar button'))e.preventDefault();});

@@ -24,15 +24,15 @@ function newGuidanceNotes(s){const u=guidanceUpdate(s.id);return hasNewGuidance(
 function guidanceChanged(u){return recommendationKey(u.recommendations)!==recommendationKey(u.baselineRecommendations)}
 function guidanceTime(value){return new Date(value).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
 function guidanceGoal(id){
- const saved=state.assignments.filter(a=>a.status==='ready'&&a.studentIds.includes(id)&&lessonObjectiveOptions(id,a.model.domain).some(o=>o.id===a.objectiveIds[id])).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0];
- const objective=saved?lessonObjectiveOptions(id,saved.model.domain).find(o=>o.id===saved.objectiveIds[id]):activeObjective(id);
+ const saved=state.assignments.filter(a=>a.status==='ready'&&a.studentIds.includes(id)&&!!objectiveForDraft(a.model,id)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0];
+ const objective=saved?objectiveForDraft(saved.model,id):activeObjective(id);
  return {saved,objective,goal:saved?findGoal(id,objective.goalId):activeGoal(id)};
 }
 function makeGuidanceProposal(s,recommendations){
  const {saved,objective,goal}=guidanceGoal(s.id),domain=goal?.domain||s.domain;
  const context=recommendations.map(x=>x.title+'. '+x.detail).join('\n');
- const model=saved?structuredClone(saved.model):createLessonDraft(domain,context,[s.id]);
- Object.assign(model,{id:uid('draft'),studentIds:objective?[s.id]:[],objectiveIds:objective?{[s.id]:objective.id}:{},context,withVariations:false,kind:saved?.kind||'assignment'});
+ const model=saved?materialForStudent(saved.model,s.id):createLessonDraft(domain,context,[s.id]);
+ Object.assign(model,{id:uid('draft'),studentIds:objective?[s.id]:[],goalIds:goal?{[s.id]:goal.id}:{},objectiveIds:objective?{[s.id]:objective.id}:{},context,withVariations:false,kind:saved?.kind||'assignment'});
  if(saved)model.title=saved.title;
  const preparation=recommendations.find(x=>x.id==='visuals'||x.id==='model');
  const delivery=recommendations.find(x=>x.id==='directions'||x.id==='oral');

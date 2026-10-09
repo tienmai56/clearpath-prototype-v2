@@ -37,7 +37,7 @@ Keep all seven files together. There are no external image, font or package depe
 - Attach PDF, JPG or PNG evidence, use a compatible phone camera, or enter manually.
 - Read weekly stakeholder notes, illustrated author profiles and a cited paragraph summary.
 - Create guided materials from Notes without leaving the student page.
-- Generate assignments or assessments for selected students in a rich text editor.
+- Generate assignments or assessments for selected students in a rich text editor. Draft options and prompt-count controls are omitted; defaults and student guidance are applied automatically.
 - Optionally create two lesson versions, assign same-grade students, and set teaching and review dates.
 - Start a plan to make assigned lessons current for the selected objectives; open and print each lesson.
 - Record progress for the whole class: choose a student for evidence entry or enter several scores together.
@@ -63,4 +63,4 @@ Upload the contents of `dist` to a static web host. The app uses hash-based navi
 
 ## Version
 
-Source commit: `be9d2e879d33d9287ef215ec1e6f3727983a1579`
+Source commit: `35e203e61f26e901f024e658534b22c2cde89ba7`

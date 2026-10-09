@@ -29,8 +29,6 @@ function assignmentSetupForm(draft,popup=false){
  <div data-assignment-objectives>${assignmentObjectives(draft,prefix)}</div>
  <div class="field"><label for="${prefix}-title">Title</label><input id="${prefix}-title" name="title" value="${esc(draft.title)}" required maxlength="100"></div>
  <div class="field"><label for="${prefix}-source">Lesson content or passage</label><textarea class="draft-input" id="${prefix}-source" name="source" required maxlength="4000">${esc(draft.source)}</textarea></div>
- <details class="disclosure assignment-options"><summary>Draft options</summary><div class="field"><label for="${prefix}-questions">Number of prompts</label><select id="${prefix}-questions" name="questions">${[3,5].map(n=>`<option value="${n}" ${+draft.questions===n?'selected':''}>${n} prompts</option>`).join('')}</select></div><div class="field"><label for="${prefix}-context">Instructional guidance</label><textarea id="${prefix}-context" name="context" rows="3" maxlength="4000" placeholder="e.g. Show one direction at a time">${esc(draft.context||'')}</textarea></div></details>
- ${draft.context?'<p class="guidance-included">Latest instructional guidance is included in draft options.</p>':''}
  ${!popup?`<div class="optional-variations"><label><input type="checkbox" name="withVariations" data-assignment-field="withVariations" ${draft.withVariations?'checked':''}><span>Create two variations <small>Optional</small></span></label><div class="field variation-setting" ${draft.withVariations?'':'hidden'}><label for="${prefix}-change">Change to compare</label><select id="${prefix}-change" name="change"><option value="${esc(lessonDefaults[draft.domain].change)}">${esc(lessonDefaults[draft.domain].change)}</option><option value="Show one instruction at a time" ${draft.change==='Show one instruction at a time'?'selected':''}>Show one instruction at a time</option></select></div></div>`:''}
  <div id="${popup?'draft-error':'lesson-error'}"></div><div class="form-foot"><span class="caption">Demo: AI drafting is simulated.</span><button class="btn primary" type="submit" data-generate-material>${draft.withVariations&&!popup?'Generate variations':'Generate '+draft.kind.toLowerCase()}</button></div></form>`;
 }
@@ -45,7 +43,7 @@ function renderDraftingModal(){const f=assignmentFlow;if(!f)return;openModal('Dr
 function draftContext(form){return {form,popup:form?.dataset?.assignmentSetup==='popup',model:form?.dataset?.assignmentSetup==='popup'?assignmentFlow?.model:lesson}}
 function preserveDraftInputs(model,form){
  if(!model||!form)return;
- for(const key of ['title','source','context','kind','questions','change']){const input=form.querySelector?.(`[name="${key}"]`);if(input)model[key]=key==='questions'?+input.value:input.value;}
+ for(const key of ['title','source','kind','change']){const input=form.querySelector?.(`[name="${key}"]`);if(input)model[key]=input.value;}
  const variation=form.querySelector?.('[name="withVariations"]');if(variation)model.withVariations=variation.checked;
 }
 function redrawDraft(ctx){if(ctx.popup)renderDraftingModal();else render()}
@@ -53,7 +51,7 @@ function handleAssignmentChange(input){
  const form=input.closest?.('form[data-assignment-setup]');if(!form)return false;
  const ctx=draftContext(form),d=ctx.model;if(!d)return false;
  const key=input.dataset.assignmentField;
- if(key==='kind'){d.kind=input.value;d.questions=input.value==='assessment'?5:3;const n=form.querySelector('[name="questions"]');if(n)n.value=String(d.questions);}
+ if(key==='kind'){d.kind=input.value;d.questions=input.value==='assessment'?5:3;}
  else if(key==='withVariations'){d.withVariations=input.checked;const setting=form.querySelector('.variation-setting');if(setting)setting.hidden=!input.checked;}
  else if(key==='grade'||key==='domain'){
   preserveDraftInputs(d,form);
@@ -77,8 +75,8 @@ function submitAssignmentSetup(values,form){
  if(draft.studentIds.some(id=>!eligibleForDraft(draft).some(s=>s.id===id)))return formError(error,'Select students in this grade with established objectives.');
  if(draft.studentIds.some(id=>!lessonObjectiveOptions(id,draft.domain).some(o=>o.id===draft.objectiveIds[id])))return formError(error,'Choose an established objective for each student.');
  if(!values.title?.trim()||!values.source?.trim())return formError(error,'Enter a title and lesson content.');
- if(!['assignment','assessment'].includes(values.kind)||![3,5].includes(+values.questions))return formError(error,'Choose a material type and 3 or 5 prompts.');
- Object.assign(draft,{title:values.title.trim(),source:values.source.trim(),context:(values.context||'').trim(),kind:values.kind,questions:+values.questions,withVariations:!ctx.popup&&(values.withVariations==='on'||values.withVariations==='true'),change:values.change||draft.change});
+ if(!['assignment','assessment'].includes(values.kind))return formError(error,'Choose an assignment or assessment.');
+ Object.assign(draft,{title:values.title.trim(),source:values.source.trim(),kind:values.kind,questions:values.kind==='assessment'?5:3,withVariations:!ctx.popup&&(values.withVariations==='on'||values.withVariations==='true'),change:values.change||draft.change});
  const original=lessonDefaults[draft.domain];draft.custom=draft.source!==original.source;
  if(draft.withVariations){
   draft.a=original.a;draft.b=draft.change==='Show one instruction at a time'?'One step at a time':original.b;
@@ -124,7 +122,7 @@ function openAssignmentEditor(id){
  const record=state.assignments.find(a=>a.id===id);if(!record)return;
  assignmentFlow={stage:'editor',recordId:id,model:structuredClone(record.model)};richSelection=null;
  const names=alphabeticalIds(record.studentIds).map(id=>getStudent(id).name).join(', '),targets=[...new Set(record.studentIds.map(id=>lessonObjectiveOptions(id,record.model.domain).find(o=>o.id===record.objectiveIds[id])?.skill).filter(Boolean))];
- openModal(`${materialLabel(record.kind)} draft`,names,`<div class="assignment-editor-shell"><div class="editor-context"><span>${gradeLabel(record.model.grade)} · ${domainNames[record.model.domain]}</span><details><summary>Target objective${targets.length>1?'s':''}</summary><p>${targets.map(esc).join('; ')}</p></details></div><div class="rich-toolbar" role="toolbar" aria-label="Text formatting">${richButton('bold','<b>B</b>','Bold')}${richButton('italic','<i>I</i>','Italic')}${richButton('underline','<u>U</u>','Underline')}<span class="toolbar-divider"></span>${richButton('heading','H','Heading')}${richButton('paragraph','¶','Paragraph')}<span class="toolbar-divider"></span>${richButton('insertUnorderedList','• List','Bulleted list')}${richButton('insertOrderedList','1. List','Numbered list')}<span class="toolbar-divider"></span>${richButton('undo','↶','Undo')}${richButton('redo','↷','Redo')}</div><div class="assignment-paper"><div id="assignment-editor" class="rich-editor" contenteditable="true" role="textbox" aria-label="Edit assignment content" aria-multiline="true" spellcheck="true">${sanitizeRichHTML(record.html)}</div></div><div id="assignment-editor-error" aria-live="polite"></div><div class="editor-meta"><span id="assignment-save-state" role="status">Draft saved in this browser</span><span>Demo draft · Review before use</span></div><div class="modal-foot editor-footer"><button class="text-btn" data-action="edit-assignment-setup">Edit draft settings</button><div class="actions">${btn(icon('print')+'Print','print-assignment')}${btn('Save '+record.kind,'save-assignment','primary')}</div></div></div>`,{wide:true,printable:true});
+ openModal(`${materialLabel(record.kind)} draft`,names,`<div class="assignment-editor-shell"><div class="editor-context"><span>${gradeLabel(record.model.grade)} · ${domainNames[record.model.domain]}</span><details><summary>Target objective${targets.length>1?'s':''}</summary><p>${targets.map(esc).join('; ')}</p></details></div><div class="rich-toolbar" role="toolbar" aria-label="Text formatting">${richButton('bold','<b>B</b>','Bold')}${richButton('italic','<i>I</i>','Italic')}${richButton('underline','<u>U</u>','Underline')}<span class="toolbar-divider"></span>${richButton('heading','H','Heading')}${richButton('paragraph','¶','Paragraph')}<span class="toolbar-divider"></span>${richButton('insertUnorderedList','• List','Bulleted list')}${richButton('insertOrderedList','1. List','Numbered list')}<span class="toolbar-divider"></span>${richButton('undo','↶','Undo')}${richButton('redo','↷','Redo')}</div><div class="assignment-paper"><div id="assignment-editor" class="rich-editor" contenteditable="true" role="textbox" aria-label="Edit assignment content" aria-multiline="true" spellcheck="true">${sanitizeRichHTML(record.html)}</div></div><div id="assignment-editor-error" aria-live="polite"></div><div class="editor-meta"><span id="assignment-save-state" role="status">Draft saved in this browser</span><span>Demo draft · Review before use</span></div><div class="modal-foot editor-footer"><button class="text-btn" data-action="edit-assignment-setup">Edit details</button><div class="actions">${btn(icon('print')+'Print','print-assignment')}${btn('Save '+record.kind,'save-assignment','primary')}</div></div></div>`,{wide:true,printable:true});
 }
 function flushAssignmentEditor(finalize=false){
  if(assignmentFlow?.stage!=='editor')return true;

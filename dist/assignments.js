@@ -56,9 +56,53 @@ function submitAssignmentSetup(values,form){
   lesson=draft;state.lesson=structuredClone(lesson);persist();studioStep=2;groups={a:[],b:[]};cohort=lesson.studentIds.slice();render();toast('Variations created.');return;
  }
  if(!ctx.popup){state.lesson=structuredClone(draft);persist();}
- const id=ctx.popup&&assignmentFlow.recordId?assignmentFlow.recordId:uid('assignment');
- const record={id,kind:draft.kind,title:draft.title,model:structuredClone(draft),studentIds:draft.studentIds.slice(),objectiveIds:structuredClone(draft.objectiveIds),html:buildAssignmentHTML(draft),status:'draft',updatedAt:new Date().toISOString()};
- const index=state.assignments.findIndex(x=>x.id===id);if(index<0)state.assignments.unshift(record);else state.assignments[index]=record;completeGuidanceDraft(draft,record);persist();render();openAssignmentEditor(id);
+ const records=createStudentAssignments(draft,{revisionOf:ctx.popup?assignmentFlow.recordId:null});
+ if(!records)return formError(error,'Could not save the drafts. Free some browser storage and try again.');
+ navigate('assignments/'+records[0].batchId);
+}
+// A generation is one batch, with an independently editable document per student.
+function createStudentAssignments(draft,{revisionOf=null,applyGuidance=false}={}){
+ const batchId=uid('batch'),now=new Date().toISOString(),base=state.assignments.find(a=>a.id===revisionOf);
+ const records=alphabeticalIds(draft.studentIds).map(id=>{
+  const model=materialForStudent(draft,id),record={id:uid('assignment'),batchId,kind:model.kind,title:model.title,model,studentIds:[id],objectiveIds:structuredClone(model.objectiveIds),html:buildAssignmentHTML(model),status:'draft',createdAt:now,updatedAt:now,modifiedAt:null,revisionOf:base?.studentIds.includes(id)?base.id:null};
+  if(applyGuidance&&base?.studentIds.length===1&&base.studentIds[0]===id){
+   const previous=sanitizeRichHTML(base.html),appendix=base.guidanceAppendix;
+   const body=appendix&&previous.endsWith(appendix)?previous.slice(0,-appendix.length):previous;
+   record.guidanceAppendix=sanitizeRichHTML(`<h3>Teaching notes</h3><ul>${guidanceUpdate(id).recommendations.map(t=>`<li>${esc(t.step)}</li>`).join('')}</ul>`);
+   record.html=body+record.guidanceAppendix;
+  }
+  return record;
+ });
+ if(!records.length)return null;
+ const before=state.assignments;state.assignments=[...records,...before];
+ if(!persist()){state.assignments=before;return null;}
+ for(const record of records)completeGuidanceDraft(record.model,record);
+ return records;
+}
+function assignmentBatches(){
+ const batches=new Map();for(const record of state.assignments){const key=record.batchId||record.id;if(!batches.has(key))batches.set(key,{id:key,records:[]});batches.get(key).records.push(record);}return [...batches.values()];
+}
+function assignmentOverview(id){
+ const batch=assignmentBatches().find(b=>b.id===id);
+ if(!batch)return `<div class="empty"><h2>Assignment not found</h2><a href="#studio" data-action="back-materials" class="btn">Back to saved materials</a></div>`;
+ const rows=batch.records.flatMap(record=>record.studentIds.map(id=>({record,student:getStudent(id)}))).sort((a,b)=>a.student.name.localeCompare(b.student.name,'en',{sensitivity:'base'}));
+ return `<a href="#studio" data-action="back-materials" class="back">${icon('back')}Saved materials</a><div class="page-head"><div><h1>Assignment overview</h1><p class="subtitle">${rows.length} ${rows.length===1?'student':'students'} · ${batch.records.length} ${batch.records.length===1?'draft':'drafts'} created</p></div></div><div class="table-card"><div class="table-wrap"><table class="roster assignment-overview"><caption class="sr-only">Students and their generated assignments</caption><thead><tr><th scope="col">Student</th><th scope="col">Assignment</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows.map(({record:r,student:s})=>`<tr><td><a class="student-name" href="#student/${s.id}">${avatar(s)}<span class="name-text">${esc(s.name)}<small>${gradeLabel(s.grade)}</small></span></a></td><td><span class="material-title">${esc(r.title)}</span>${r.revisionOf?'<small class="material-detail">Revised draft</small>':''}</td><td><span class="material-status">${r.status==='ready'?'Saved':'Draft'}</span></td><td class="material-action">${btn('Open draft','open-assignment','small',`data-id="${r.id}" aria-label="Open draft for ${esc(s.name)}"`)}</td></tr>`).join('')}</tbody></table></div></div><div class="overview-footer">${btn('Create another assignment','new-lesson')}</div>`;
+}
+function materialDate(value,empty='—'){
+ if(!value||!Number.isFinite(Date.parse(value)))return `<span class="muted">${empty}</span>`;
+ const date=new Date(value);return `<time datetime="${esc(date.toISOString())}" title="${esc(date.toLocaleString('en-US'))}">${date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}<small>${date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</small></time>`;
+}
+function materialModifiedAt(record){return Object.prototype.hasOwnProperty.call(record,'modifiedAt')?record.modifiedAt:record.updatedAt}
+function assignmentHistory(s){
+ const records=[...state.assignments.filter(a=>a.studentIds.includes(s.id)).map(a=>({...a,type:'assignment'})),...state.drafts.filter(d=>d.studentIds?.includes(s.id)).map(d=>({...d,type:'variations'}))].sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
+ return `<section class="assignment-history" aria-labelledby="assignment-history-heading"><div class="section-row"><h2 id="assignment-history-heading">Assignment history</h2></div>${records.length?`<div class="table-wrap"><table class="assignment-audit"><caption class="sr-only">Assignments, creation dates and last modifications for ${esc(s.name)}</caption><thead><tr><th scope="col">Assignment</th><th scope="col">Created</th><th scope="col">Last modified</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${records.map(r=>`<tr><td><span class="material-title">${esc(r.title)}</span><small class="material-detail">${r.type==='variations'?'Two lesson versions':r.revisionOf?'Revised '+r.kind:materialLabel(r.kind)}</small></td><td>${materialDate(r.createdAt,'Not recorded')}</td><td>${materialDate(materialModifiedAt(r))}</td><td class="material-action">${btn('Open',r.type==='variations'?'open-draft':'open-assignment','small',`data-id="${r.id}" aria-label="Open ${esc(r.title)}"`)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="section-description">No assignments created yet.</p>'}</section>`;
+}
+function saveVariationDraft(){
+ const index=state.drafts.findIndex(d=>d.id===lesson.id),old=state.drafts[index],now=new Date().toISOString();
+ const content=d=>JSON.stringify({...d,createdAt:undefined,updatedAt:undefined,modifiedAt:undefined,studentPickerOpen:undefined});
+ const changed=old&&content(old)!==content(lesson),record={...structuredClone(lesson),createdAt:old?old.createdAt||null:now,updatedAt:changed||!old?now:old.updatedAt,modifiedAt:changed?now:old?materialModifiedAt(old)||null:null};
+ const before=state.drafts.slice();if(index<0)state.drafts.unshift(record);else state.drafts[index]=record;
+ if(!persist()){state.drafts=before;return false;}return true;
 }
 function buildAssignmentHTML(d){
  if(d.studentIds?.length>1)return sanitizeRichHTML(`<h2>${esc(d.title)}</h2>`+alphabeticalIds(d.studentIds).map(id=>{const model=materialForStudent(d,id),o=objectiveForDraft(d,id);return `<h3>${esc(getStudent(id).name)} · ${esc(domainNames[model.domain])}</h3>${o?`<p>Objective: ${esc(o.skill)}</p>`:''}`+buildStudentAssignmentHTML(model).replace(/^<h2>[\s\S]*?<\/h2>/,'');}).join(''));
@@ -105,8 +149,13 @@ function flushAssignmentEditor(finalize=false){
  const editor=document.getElementById('assignment-editor'),record=state.assignments.find(a=>a.id===assignmentFlow.recordId);if(!editor||!record)return true;
  if(editor.innerHTML.length>60000){formError('assignment-editor-error','Keep the assignment under 60,000 characters.');return false;}
  const html=sanitizeRichHTML(editor.innerHTML);if(finalize&&!html.replace(/<[^>]+>/g,'').trim()){formError('assignment-editor-error','Add some content before saving.');return false;}
- record.html=html;const heading=editor.querySelector?.('h1,h2');if(heading?.textContent.trim())record.title=heading.textContent.trim().slice(0,100);record.model.title=record.title;record.updatedAt=new Date().toISOString();if(finalize)record.status='ready';
- const saved=persist(),status=document.getElementById('assignment-save-state');if(status)status.textContent=saved?'Draft saved in this browser':'Not saved · browser storage unavailable';return saved;
+ const previous=structuredClone(record),heading=editor.querySelector?.('h1,h2'),title=heading?.textContent.trim().slice(0,100)||record.title;
+ const changed=html!==sanitizeRichHTML(record.html)||title!==record.title;
+ record.html=html;record.title=title;record.model.title=title;
+ if(changed)record.updatedAt=record.modifiedAt=new Date().toISOString();
+ if(finalize){record.status='ready';record.savedAt ||= new Date().toISOString();}
+ const saved=persist();if(!saved)state.assignments[state.assignments.findIndex(a=>a.id===record.id)]=previous;
+ const status=document.getElementById('assignment-save-state');if(status)status.textContent=saved?'Draft saved in this browser':'Not saved · browser storage unavailable';return saved;
 }
 function finishAssignmentModal(){
  if(!assignmentFlow)return true;
@@ -125,8 +174,10 @@ function handleAssignmentAction(action,el){
  if(handleSelectionAction(action,el))return true;
  if(action==='guided-materials'){openDraftingModal(el.dataset.id);return true;}
  if(action==='open-assignment'){openAssignmentEditor(el.dataset.id);return true;}
+ if(action==='open-assignment-overview'){navigate('assignments/'+el.dataset.id);return true;}
+ if(action==='back-materials'){studioTab='saved';navigate('studio');return true;}
  if(action==='rich-format'){formatAssignment(el.dataset.command);return true;}
- if(action==='save-assignment'){if(flushAssignmentEditor(true)){closeModal();render();toast('Material saved.');}return true;}
+ if(action==='save-assignment'){if(flushAssignmentEditor(true)){const record=state.assignments.find(a=>a.id===assignmentFlow.recordId);navigate('assignments/'+(record.batchId||record.id));toast('Material saved.');}return true;}
  if(action==='print-assignment'){if(flushAssignmentEditor())window.print();return true;}
  if(action==='edit-assignment-setup'){
   if(!flushAssignmentEditor())return true;
@@ -136,9 +187,9 @@ function handleAssignmentAction(action,el){
 }
 function handleAssignmentInput(event){if(event.target.dataset?.assignmentSearch!==undefined){filterAssignmentStudents(event.target);return true;}if(event.target.id==='assignment-editor'||event.target.closest?.('#assignment-editor')){queueAssignmentSave();return true;}return false;}
 function savedMaterials(){
- const items=[...state.assignments.map(d=>({type:'single',...d})),...state.drafts.map(d=>({type:'variations',...d}))];
+ const items=[...assignmentBatches().map(b=>({type:'single',id:b.id,title:new Set(b.records.map(r=>r.title)).size===1?b.records[0].title:'Individual '+(b.records[0].kind==='assessment'?'assessments':'assignments'),studentIds:[...new Set(b.records.flatMap(r=>r.studentIds))],model:b.records[0].model,kind:b.records[0].kind,createdAt:b.records[0].createdAt||b.records[0].updatedAt})),...state.drafts.map(d=>({type:'variations',...d}))].sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
  if(!items.length)return `<div class="empty"><h3>No saved materials</h3><p class="small">Assignments, assessments and variations appear here.</p><div class="top-space">${btn('Create assignment','new-lesson','primary')}</div></div>`;
- return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${d.type==='single'?materialLabel(d.kind):'Two variations'} · ${d.type==='single'?draftGradeLabel(d.model):gradeLabel(d.grade)} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),d.type==='single'?'open-assignment':'open-draft','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
+ return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${d.type==='single'?materialLabel(d.kind):'Two variations'} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),d.type==='single'?'open-assignment-overview':'open-draft','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
 }
 document.addEventListener('selectionchange',rememberRichSelection);
 document.addEventListener('mousedown',e=>{if(e.target.closest?.('.rich-toolbar button'))e.preventDefault();});

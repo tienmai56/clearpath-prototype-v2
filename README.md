@@ -37,15 +37,17 @@ Keep all eight files together. There are no external image, font or package depe
 - Review student progress and record results in a popup.
 - Attach PDF, JPG or PNG evidence, use a compatible phone camera, or enter manually.
 - Read weekly stakeholder notes, illustrated author profiles and a cited paragraph summary.
-- Create guided materials from Notes without leaving the student page.
-- Select students first, then choose each student’s goal, then an objective under that goal. Goals and objectives appear as earlier selections are completed.
-- Generate an assignment or assessment and edit it in the rich text popup. Draft options, prompt-count, grade and goal-area controls are omitted; defaults and student guidance are applied automatically.
-- Students with different goal areas receive separate sections in the generated document; their target mappings are retained.
+- Start guided materials from Notes in a popup, then review the generated drafts in an assignment overview.
+- Select students first, then choose each student’s goal, then an objective under that goal. Goals and objectives appear as earlier selections are completed. Full student names are not repeated beneath the selectors; multiple-student rows retain compact initials and accessible labels.
+- Generate an assignment or assessment to see an alphabetical overview of the selected students, with a separate editable draft and Open draft action for each student. Draft options, prompt-count, grade and goal-area controls are omitted; defaults and student guidance are applied automatically.
+- Each student receives a separate document matched to their chosen goal and objective. Editing one student’s draft does not change another’s. Drafts from the same generation stay grouped in Saved materials.
 - Optionally enable **Try two lesson versions**, explained as a small classroom experiment. Select at least two students in the same grade with goals in the same area, generate the lessons, then assign students randomly and set teaching/review dates.
 - Start a plan to make assigned lessons current for the selected objectives; open and print each lesson.
 - Record progress for the whole class: choose a student for evidence entry or enter several scores together.
 - Review results and choose which lesson each student will use going forward.
-- See new stakeholder inputs in My class and Notes, review updated guidance and its citations, then create a revised draft.
+- See new stakeholder inputs in My class and Notes, review updated guidance and its citations, then select **Create revised draft** to open the rich text editor directly. The suggested-plan preview and redundant AI setup step are removed from this flow. Revised drafts preserve the original assignment and retain teacher-authored content with updated teaching notes.
+- See **Assignment history** at the end of each student’s Progress tab, with creation and last-modified dates. Opening or saving unchanged content does not update the modification date. Older creation dates that were never stored display Not recorded.
+- The redundant objective heading/current-lesson line and Progress records section are removed. Recorded progress, charts, and underlying evidence logs are preserved.
 - Save and reopen drafts; print assignments.
 
 ## Prototype behavior
@@ -56,7 +58,7 @@ Guidance refreshes locally whenever a note is saved and when the app opens. Ther
 
 Edits are saved in the current browser using localStorage (`clearpath-prototype-v1`). Uploaded evidence uses IndexedDB (`clearpath-evidence`). This repository contains the code and fictional seed data, not the records or uploads entered in a particular browser. There is no shared database, login system, OCR, or transfer of files between devices. Camera capture depends on the phone/browser.
 
-The rich text toolbar uses the browser's native editing commands. 36 functional code checks passed; live visual, hardware camera and browser formatting checks were unavailable.
+The rich text toolbar uses the browser's native editing commands. 35 functional code checks passed for assignment overviews, revisions, audit dates, guidance and teaching plans; live visual, hardware camera and browser formatting checks were unavailable.
 
 Use **About this prototype → Reset demo changes** to clear local demo edits.
 
@@ -66,4 +68,4 @@ Upload the contents of `dist` to a static web host. The app uses hash-based navi
 
 ## Version
 
-Source commit: `e2ab5a56c3e8ab64a1e4535c9018fab52465eb43`
+Source commit: `d84ae7810a54de11d3f310faab83c74d6cba2c29`

@@ -96,16 +96,17 @@ function renderGuidanceReview(s,u){
   <div class="guidance-review-meta"><span>${unread?guidanceInputLabel(s):'Latest guidance'}</span><span>Generated ${guidanceTime(u.generatedAt)}</span></div>
   <section class="guidance-review-section"><h3>${unread?'What came in':'Supporting inputs'}</h3>${sourceNotes.map((n,i)=>`<div class="guidance-input"><div class="guidance-input-head">${stakeholderProfile(n)}<div><strong>${esc(n.author)}</strong><span>${esc(n.role)} · ${formatDate(n.dateISO)}</span></div>${noteCitation(n,Math.max(0,notesFor(s).findIndex(x=>x.id===n.id))+1)}</div><p>${esc(n.text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim()||n.text)}</p></div>`).join('')}</section>
   <section class="guidance-review-section"><h3>${guidanceChanged(u)?'Recommended changes':'Current recommendations'}</h3>${!guidanceChanged(u)?'<p class="guidance-unchanged">No lesson change suggested from the new input.</p>':''}${u.recommendations.map(t=>`<div class="guidance-change"><span class="guidance-change-label">${guidanceChangeLabel(u,t)}</span><div><h4>${esc(t.title)}</h4><p>${esc(t.detail)} ${t.sources.map(n=>noteCitation(n,Math.max(0,notesFor(s).findIndex(x=>x.id===n.id))+1)).join(' ')}</p></div></div>`).join('')||'<p class="section-description">Review the source note before deciding whether to adapt instruction.</p>'}</section>
-  ${u.recommendations.length?`<section class="guidance-review-section"><div class="section-row"><h3>Suggested lesson plan</h3><span class="caption no-margin">${proposal.baseTitle?'From saved material':'Example lesson'}</span></div><h4 class="guidance-lesson-title">${esc(proposal.model.title)}</h4>${proposal.objective?`<p class="guidance-objective">Objective: ${esc(proposal.objective)}</p>`:''}<ol class="guidance-plan">${proposal.steps.map(x=>`<li>${esc(x)}</li>`).join('')}</ol><p class="caption">${proposal.baseTitle?'Uses the lesson content from “'+esc(proposal.baseTitle)+'”. ':' '}Keep the objective and usual accommodations.</p></section>`:''}
-  <div class="modal-foot guidance-review-foot">${unread?btn('Mark reviewed','mark-guidance-reviewed','',`data-id="${s.id}" data-revision="${u.revision}"`):btn('Close','close')}${canDraft&&u.recommendations.length?btn('Create revised draft','draft-guidance','primary',`data-id="${s.id}" data-revision="${u.revision}"`):''}</div>
+  <div class="modal-foot guidance-review-foot">${unread?btn('Mark reviewed','mark-guidance-reviewed','text-btn',`data-id="${s.id}" data-revision="${u.revision}"`):btn('Close','close')}${canDraft&&u.recommendations.length?btn('Create revised draft '+icon('arrow'),'draft-guidance','primary',`data-id="${s.id}" data-revision="${u.revision}"`):''}</div>
  </div>`,{wide:true});
 }
 function openGuidanceDraft(id,revision){
  const u=guidanceUpdate(id);if(!u||u.revision!==Number(revision)){toast('A newer update is ready. Review it first.');return openGuidanceReview(id);}
- if(!u.proposal.model.studentIds.length)return toast('Establish an objective in the IEP plan first.');
+ if(!u.proposal.model.studentIds.length||!objectiveForDraft(u.proposal.model,id))return toast('Establish an objective in the IEP plan first.');
  pendingGuidanceReview=null;
  const model=structuredClone(u.proposal.model);model.guidanceReview={student:id,revision:u.revision};
- assignmentFlow={stage:'setup',model,recordId:null};renderDraftingModal();
+ const records=createStudentAssignments(model,{revisionOf:u.proposal.baseId,applyGuidance:true});
+ if(!records)return;
+ render();openAssignmentEditor(records[0].id);
 }
 function completeGuidanceDraft(model,record){
  const review=model.guidanceReview;if(!review||!model.studentIds.includes(review.student))return;

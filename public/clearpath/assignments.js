@@ -39,12 +39,15 @@ function submitAssignmentSetup(values,form){
  const ctx=draftContext(form),draft=ctx.model,error=ctx.popup?'draft-error':'lesson-error';if(!draft)return;
  if(!draft.studentIds.length)return formError(error,'Select at least one student.');
  normalizeDraftSelection(draft);
+ const variations=!ctx.popup&&studioIntent==='variations';if(variations)reconcileSharedTargets(draft);
+ if(variations&&(draft.studentIds.length<2||new Set(draft.studentIds.map(id=>getStudent(id).grade)).size!==1))return formError(error,'Choose at least two students in the same grade.');
+ if(variations&&!selectedSharedGoal(draft))return formError(error,'Select a goal shared by all selected students.');
+ if(variations&&!selectedSharedObjective(draft))return formError(error,'Select an established objective shared by all selected students for this goal.');
  if(!draftGoalsComplete(draft))return formError(error,'Select a goal for each student.');
  if(!draftObjectivesComplete(draft))return formError(error,'Select an established objective from each chosen goal.');
  const kind=values.kind||draft.kind;
  if(!['assignment','assessment'].includes(kind))return formError(error,'Choose an assignment or assessment.');
- const variations=!ctx.popup&&studioIntent==='variations';
- if(variations&&!canCompareDraft(draft))return formError(error,'For an experiment, choose at least two students in the same grade with goals in the same area.');
+ if(variations&&!canCompareDraft(draft))return formError(error,'Choose a shared goal and objective for at least two students in the same grade.');
  syncDraftSelection(draft);
  Object.assign(draft,{title:values.title?.trim()||draft.title,source:values.source?.trim()||draft.source,kind,questions:kind==='assessment'?5:3,withVariations:variations,change:values.change||draft.change});
  const original=lessonDefaults[draft.domain];draft.custom=draft.source!==original.source;

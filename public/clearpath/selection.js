@@ -16,8 +16,62 @@ function normalizeDraftSelection(draft){
 }
 function draftGoalsComplete(draft){return draft.studentIds.length>0&&draft.studentIds.every(id=>!!goalForDraft(draft,id))}
 function draftObjectivesComplete(draft){return draftGoalsComplete(draft)&&draft.studentIds.every(id=>!!objectiveForDraft(draft,id))}
+// Shared targets match goal content within an area and objective skill text.
+// Each match keeps the original student-specific IDs, SMART targets and deadlines.
+function sharedTargetText(value){return String(value||'').normalize('NFKC').trim().toLowerCase().replace(/[’‘]/g,"'").replace(/[.!?]+$/,'').replace(/\s+/g,' ').trim()}
+function sharedGoalKey(goal){return goal?JSON.stringify([goal.domain,sharedTargetText(goal.content||goal.title)]):''}
+function sharedGoalOptions(draft){
+ const ids=draft.studentIds||[];if(!ids.length)return [];
+ const seen=new Set(),options=[];
+ for(const first of goalPlansFor(ids[0])){
+  const key=sharedGoalKey(first);if(seen.has(key)||!sharedTargetText(first.content||first.title))continue;seen.add(key);
+  const candidates=Object.fromEntries(ids.map(id=>[id,goalPlansFor(id).filter(g=>sharedGoalKey(g)===key)]));
+  if(ids.every(id=>candidates[id].length))options.push({key,title:first.title,content:first.content||first.title,candidates});
+ }
+ return options.sort((a,b)=>a.title.localeCompare(b.title,'en',{sensitivity:'base'}));
+}
+function selectedSharedGoal(draft){
+ const first=goalForDraft(draft,draft.studentIds[0]),inferred=first&&draft.studentIds.every(id=>sharedGoalKey(goalForDraft(draft,id))===sharedGoalKey(first))?sharedGoalKey(first):'';
+ return sharedGoalOptions(draft).find(g=>g.key===(draft.sharedGoalKey??inferred))||null;
+}
+function sharedObjectiveOptions(draft,goal=selectedSharedGoal(draft)){
+ if(!goal)return [];
+ const ids=draft.studentIds,seen=new Set(),options=[];
+ const candidates=Object.fromEntries(ids.map(id=>[id,goal.candidates[id].flatMap(g=>approvedObjectives(g).map(o=>({goalId:g.id,objectiveId:o.id,key:sharedTargetText(o.skill),skill:o.skill})))]));
+ for(const first of candidates[ids[0]]){
+  if(!first.key||seen.has(first.key))continue;seen.add(first.key);
+  const targets={};
+  for(const id of ids){const matches=candidates[id].filter(o=>o.key===first.key),match=matches.find(o=>o.objectiveId===draft.objectiveIds?.[id])||matches[0];if(match)targets[id]=match;}
+  if(ids.every(id=>targets[id]))options.push({key:first.key,skill:first.skill,targets});
+ }
+ return options;
+}
+function selectedSharedObjective(draft,goal=selectedSharedGoal(draft)){
+ const first=objectiveForDraft(draft,draft.studentIds[0]),inferred=first&&draft.studentIds.every(id=>sharedTargetText(objectiveForDraft(draft,id)?.skill)===sharedTargetText(first.skill))?sharedTargetText(first.skill):'';
+ return sharedObjectiveOptions(draft,goal).find(o=>o.key===(draft.sharedObjectiveKey??inferred))||null;
+}
+function applySharedTargets(draft,goal,objective=null){
+ draft.sharedGoalKey=goal?.key||'';draft.sharedObjectiveKey=objective?.key||'';
+ const previous=draft.goalIds;draft.goalIds={};draft.objectiveIds={};
+ if(!goal)return;
+ for(const id of draft.studentIds){
+  draft.goalIds[id]=objective?.targets[id].goalId||goal.candidates[id].find(g=>g.id===previous?.[id])?.id||goal.candidates[id][0].id;
+  if(objective)draft.objectiveIds[id]=objective.targets[id].objectiveId;
+ }
+}
+function reconcileSharedTargets(draft){const goal=selectedSharedGoal(draft),objective=selectedSharedObjective(draft,goal);applySharedTargets(draft,goal,objective)}
+function sharedGoals(draft,prefix){
+ if(!draft.studentIds.length)return '';
+ const goals=sharedGoalOptions(draft),selected=selectedSharedGoal(draft);
+ return `<fieldset class="assignment-section shared-targets" data-shared-goals><legend>Shared goals</legend>${goals.length?`<div class="shared-target-list">${goals.map((g,i)=>`<label class="shared-target-option"><input type="radio" id="${prefix}-shared-goal-${i}" name="shared-goal" data-shared-goal value="${esc(g.key)}" ${selected?.key===g.key?'checked':''}><span><strong>${esc(g.title)}</strong>${sharedTargetText(g.title)!==sharedTargetText(g.content)?`<small>${esc(g.content)}</small>`:''}</span></label>`).join('')}</div>`:'<p class="selection-empty" role="status">No goals shared by all selected students. Choose a different group.</p>'}</fieldset>`;
+}
+function sharedObjectives(draft,prefix){
+ const goal=selectedSharedGoal(draft);if(!goal)return '';
+ const objectives=sharedObjectiveOptions(draft,goal),selected=selectedSharedObjective(draft,goal);
+ return `<fieldset class="assignment-section shared-targets" data-shared-objectives><legend>Shared objectives</legend>${objectives.length?`<div class="shared-target-list">${objectives.map((o,i)=>`<label class="shared-target-option"><input type="radio" id="${prefix}-shared-objective-${i}" name="shared-objective" data-shared-objective value="${esc(o.key)}" ${selected?.key===o.key?'checked':''}><span>${esc(o.skill)}</span></label>`).join('')}</div>`:'<p class="selection-empty" role="status">No established objectives shared by all selected students for this goal. Choose another goal or group.</p>'}</fieldset>`;
+}
 function canCompareDraft(draft){
- return draft.studentIds.length>=2&&draftObjectivesComplete(draft)&&new Set(draft.studentIds.map(id=>getStudent(id).grade)).size===1&&new Set(draft.studentIds.map(id=>goalForDraft(draft,id).domain)).size===1;
+ return draft.studentIds.length>=2&&draftObjectivesComplete(draft)&&new Set(draft.studentIds.map(id=>getStudent(id).grade)).size===1&&new Set(draft.studentIds.map(id=>sharedGoalKey(goalForDraft(draft,id)))).size===1&&new Set(draft.studentIds.map(id=>sharedTargetText(objectiveForDraft(draft,id).skill))).size===1;
 }
 function syncDraftSelection(draft){
  normalizeDraftSelection(draft);
@@ -45,11 +99,12 @@ function assignmentObjectives(draft,prefix='lesson'){
 }
 function assignmentSetupForm(draft,popup=false){
  normalizeDraftSelection(draft);
- const prefix=popup?'draft':'lesson',ready=draftObjectivesComplete(draft),experiment=canCompareDraft(draft),variations=!popup&&studioIntent==='variations';
+ const variations=!popup&&studioIntent==='variations';if(variations)reconcileSharedTargets(draft);
+ const prefix=popup?'draft':'lesson',ready=draftObjectivesComplete(draft),experiment=canCompareDraft(draft);
  return `<form class="plain-form lesson-setup selection-form ${popup?'draft-popup-form':''}" id="${popup?'assignment-draft-form':'lesson-form'}" data-assignment-setup="${popup?'popup':'page'}">
- ${assignmentStudents(draft,prefix)}${assignmentGoals(draft,prefix)}${assignmentObjectives(draft,prefix)}
+ ${assignmentStudents(draft,prefix)}${variations?sharedGoals(draft,prefix)+sharedObjectives(draft,prefix):assignmentGoals(draft,prefix)+assignmentObjectives(draft,prefix)}
  ${ready?variations?`<div class="field variation-setting"><label for="${prefix}-change">What should differ between the lessons?</label><select id="${prefix}-change" name="change" data-assignment-field="change"><option value="${esc(lessonDefaults[draft.domain].change)}" ${draft.change===lessonDefaults[draft.domain].change?'selected':''}>${esc(lessonDefaults[draft.domain].change)}</option><option value="Show one instruction at a time" ${draft.change==='Show one instruction at a time'?'selected':''}>Show one instruction at a time</option></select><p class="caption">Next, review both versions and assign students to each one.</p></div>`:`<div class="field material-type"><label for="${prefix}-kind">Material type</label><select id="${prefix}-kind" name="kind" data-assignment-field="kind"><option value="assignment" ${draft.kind==='assignment'?'selected':''}>Assignment</option><option value="assessment" ${draft.kind==='assessment'?'selected':''}>Assessment</option></select></div>`:''}
- ${variations&&!experiment?'<p class="selection-requirement">Select at least two students in the same grade with goals in the same area.</p>':''}
+ ${variations&&(draft.studentIds.length<2||new Set(draft.studentIds.map(id=>getStudent(id).grade)).size!==1)?'<p class="selection-requirement">Select at least two students in the same grade.</p>':''}
  <div id="${popup?'draft-error':'lesson-error'}"></div><div class="form-foot"><span class="caption">Demo: AI drafting is simulated.</span><button class="btn primary" type="submit" data-generate-material ${ready&&(!variations||experiment)?'':'disabled'}>${variations?'Generate lesson variants':'Generate '+draft.kind}</button></div></form>`;
 }
 function redrawSelection(ctx,focusId=''){
@@ -58,10 +113,14 @@ function redrawSelection(ctx,focusId=''){
  if(focusId)setTimeout(()=>document.getElementById(focusId)?.focus(),50);
 }
 function handleAssignmentSelection(input,ctx){
- const d=ctx.model,prefix=ctx.popup?'draft':'lesson';normalizeDraftSelection(d);
+ const d=ctx.model,variations=!ctx.popup&&studioIntent==='variations';normalizeDraftSelection(d);
  if(input.name==='lesson-student'){
   const id=input.value;d.studentIds=alphabeticalIds(input.checked?[...new Set([...d.studentIds,id])]:d.studentIds.filter(x=>x!==id));
   delete d.goalIds[id];delete d.objectiveIds[id];d.studentPickerOpen=true;
+ }else if(variations&&input.dataset.sharedGoal!==undefined){
+  applySharedTargets(d,sharedGoalOptions(d).find(g=>g.key===input.value)||null);d.studentPickerOpen=false;
+ }else if(variations&&input.dataset.sharedObjective!==undefined){
+  const goal=selectedSharedGoal(d);applySharedTargets(d,goal,sharedObjectiveOptions(d,goal).find(o=>o.key===input.value)||null);d.studentPickerOpen=false;
  }else if(input.dataset.assignmentGoal){
   const id=input.dataset.assignmentGoal;d.goalIds[id]=input.value;delete d.objectiveIds[id];d.studentPickerOpen=false;
  }else if(input.dataset.assignmentObjective){
@@ -71,14 +130,15 @@ function handleAssignmentSelection(input,ctx){
  }else if(input.dataset.assignmentField==='change'){d.change=input.value;return true;}
  else if(input.dataset.assignmentField==='kind'){d.kind=input.value;d.questions=input.value==='assessment'?5:3;}
  else return false;
- syncDraftSelection(d);redrawSelection(ctx,input.id||'');return true;
+ if(variations)reconcileSharedTargets(d);syncDraftSelection(d);redrawSelection(ctx,input.id||'');return true;
 }
 function handleSelectionAction(action,el){
  if(!['select-draft-students','close-student-picker'].includes(action))return false;
  const ctx=draftContext(el.closest('form')),d=ctx.model;if(!d)return true;
  normalizeDraftSelection(d);
  if(action==='select-draft-students'){d.studentIds=alphabeticalStudents().map(s=>s.id);d.studentPickerOpen=true;}else d.studentPickerOpen=false;
- syncDraftSelection(d);redrawSelection(ctx,action==='close-student-picker'?(ctx.popup?'draft':'lesson')+'-goal-'+d.studentIds[0]:'');return true;
+ const variations=!ctx.popup&&studioIntent==='variations';if(variations)reconcileSharedTargets(d);
+ syncDraftSelection(d);redrawSelection(ctx,action==='close-student-picker'?(variations?'lesson-shared-goal-0':(ctx.popup?'draft':'lesson')+'-goal-'+d.studentIds[0]):'');return true;
 }
 function filterAssignmentStudents(input){
  const menu=input.closest('.student-picker-menu'),value=input.value.trim().toLowerCase();if(!menu)return;

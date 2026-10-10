@@ -28,12 +28,16 @@ Use a local HTTP server for reliable browser storage and file attachment behavio
 - `dist/selection.js` — student picker and progressive goal/objective selection, shared by the page and popup.
 - `dist/guidance.js` — note-driven guidance updates, unread state, source-linked review and revised drafts.
 - `dist/trials.js` — dated teaching plans, lesson assignments, class progress recording and review choices.
+- `dist/goals.js` — goal metadata, add/edit form, objective drafting and per-student achievement status.
 
-Keep all eight files together. There are no external image, font or package dependencies.
+Keep all nine files together. There are no external image, font or package dependencies.
 
 ## Included flows
 
-- Add students and manage IEP goals with nested SMART objectives.
+- Add students and add goals from the student’s Progress or IEP plan. Goal fields include Goal name, Content, Standard, Baseline, Goal deadline and Objectives. Standard and narrative baseline are optional.
+- Enter objective skills in the goal form or leave them blank to generate editable SMART drafts. Objectives remain numbered and nested beneath their goal; teachers approve and can edit them.
+- Mark a specific student’s goal as **Achieved goal**, with a completion date and **Reopen goal** action. The class and IEP lists reflect when all of that student’s goals are achieved. Changing goal content or objective skills reopens the goal; metadata edits preserve its status.
+- Existing goal, objective and progress links are retained. Missing historical standard/baseline details are left blank rather than fabricated.
 - Review student progress and record results in a popup.
 - Attach PDF, JPG or PNG evidence, use a compatible phone camera, or enter manually.
 - Read weekly stakeholder notes, illustrated author profiles and a cited paragraph summary.
@@ -58,7 +62,7 @@ Guidance refreshes locally whenever a note is saved and when the app opens. Ther
 
 Edits are saved in the current browser using localStorage (`clearpath-prototype-v1`). Uploaded evidence uses IndexedDB (`clearpath-evidence`). This repository contains the code and fictional seed data, not the records or uploads entered in a particular browser. There is no shared database, login system, OCR, or transfer of files between devices. Camera capture depends on the phone/browser.
 
-The rich text toolbar uses the browser's native editing commands. 35 functional code checks passed for assignment overviews, revisions, audit dates, guidance and teaching plans; live visual, hardware camera and browser formatting checks were unavailable.
+The rich text toolbar uses the browser's native editing commands. 49 functional code checks passed for goal creation, editing, achievement and migration, plus assignment overviews, revisions, audit dates, guidance and teaching plans; live visual, hardware camera and browser formatting checks were unavailable.
 
 Use **About this prototype → Reset demo changes** to clear local demo edits.
 
@@ -68,4 +72,4 @@ Upload the contents of `dist` to a static web host. The app uses hash-based navi
 
 ## Version
 
-Source commit: `d84ae7810a54de11d3f310faab83c74d6cba2c29`
+Source commit: `a6604499e145c44a0cb2f4da56874a7823f8295f`

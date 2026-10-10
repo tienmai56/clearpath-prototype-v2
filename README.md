@@ -4,6 +4,10 @@ Interactive prototype for IEP planning, student progress, assignments, lesson co
 
 ## Current experience
 
+- **Create & Track Goals** replaces the IEP plans roster with a student-first workspace: **IEP Goal**, **Service Time**, and **Notes**. Select a student, goal, then objective to record progress; expand goal details to edit the goal, nested objectives, or measurement plan.
+- **Service Time** logs the service, provider, date, minutes, and optional linked goal. Optional session notes appear with their provider in Notes and refresh instructional guidance. Logs persist in this browser; no service-minute compliance calculation is implied.
+- **Notes** now lives in Create & Track Goals. Class alerts, citations, and lesson-update reviews open the matching student there.
+
 - **Generate assignments** opens with two simple cards: **Create assignments** and **Create lesson variants**. Saved materials and teaching plans are secondary links; there are no creation-page tabs.
 - Assignments: select students alphabetically, then their goals and objectives, and generate an assignment or assessment. Each student gets an independently editable rich-text draft and appears in the assignment overview.
 - Lesson variants: select at least two students in the same grade, choose from one list of shared goals, then one list of shared established objectives under that goal, and generate two versions, review them, assign students randomly, and set a teaching schedule. An explicit start activates the plan; class evidence and dated reviews show what happens next.

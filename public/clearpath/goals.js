@@ -17,7 +17,7 @@ function goalObjectiveFields(){
 }
 function goalModal(id,gid=''){
  const s=students.find(s=>s.id===id),g=findGoal(id,gid);if(!s)return;
- goalDraftEditor={student:id,goalId:gid,objectives:g?.objectives.length?g.objectives.map(o=>({id:o.id,skill:o.skill})):[{id:null,skill:''}]};
+ goalDraftEditor={student:id,goalId:gid,returnWorkspace:route().page==='plans',objectives:g?.objectives.length?g.objectives.map(o=>({id:o.id,skill:o.skill})):[{id:null,skill:''}]};
  openModal(g?'Edit goal':'Add goal',s.name,`<form id="goal-form" class="goal-editor"><input type="hidden" name="student" value="${id}"><input type="hidden" name="goalId" value="${gid}">
   <div class="field"><label for="goal-title">Goal name</label><input id="goal-title" name="title" required maxlength="160" placeholder="e.g. Story sequencing" value="${esc(g?.title||'')}"></div>
   <div class="field"><label for="goal-content">Content</label><textarea id="goal-content" name="content" required rows="3" maxlength="2000" placeholder="What should the student be able to do?">${esc(g?.content||'')}</textarea></div>
@@ -58,7 +58,7 @@ function saveGoalForm(d){
  const oldGoals=state.goalPlans[s.id]||[],first=!oldGoals.length,oldDomain=s.domain;
  state.goalPlans[s.id]=previous?oldGoals.map(x=>x.id===g.id?g:x):[...oldGoals,g];if(first)s.domain=g.domain;
  if(!persist()){state.goalPlans[s.id]=oldGoals;s.domain=oldDomain;return formError('goal-error','Could not save the goal. Try again after freeing browser storage.');}
- activeGoalIds[s.id]=g.id;delete activeObjectiveIds[s.id];closeModal();studentTab='plan';navigate('student/'+s.id);toast(previous?'Goal saved.':'Goal added. Review its objectives.');
+ const returnWorkspace=goalDraftEditor?.returnWorkspace;activeGoalIds[s.id]=g.id;delete activeObjectiveIds[s.id];closeModal();if(returnWorkspace){workspaceGoalIds[s.id]=g.id;workspaceObjectiveIds[s.id]=g.objectives[0]?.id||'';navigateGoalWorkspace('goal',s.id);}else{studentTab='plan';navigate('student/'+s.id);}toast(previous?'Goal saved.':'Goal added. Review its objectives.');
 }
 function setGoalAchievement(id,gid,achieved){
  const g=findGoal(id,gid);if(!g)return;

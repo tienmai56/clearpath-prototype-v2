@@ -82,10 +82,10 @@ function guidanceChangeLabel(u,item){const old=u.baselineRecommendations.find(x=
 function openGuidanceReview(id){
  const s=getStudent(id),u=guidanceUpdate(id);if(!u)return;
  u.proposal=makeGuidanceProposal(s,u.recommendations);
- studentTab='evidence';if(route().page!=='student'||route().id!==id)navigate('student/'+id);else render();
+ if(route().page!=='plans'||route().id!=='notes'||route().student!==id)navigateGoalWorkspace('notes',id);else render();
  // A hashchange must not close the dialog that opened it.
  pendingGuidanceReview=id;
- if(route().id===id)renderGuidanceReview(s,u);
+ if(route().page==='plans'&&route().student===id)renderGuidanceReview(s,u);
 }
 let pendingGuidanceReview=null;
 function renderGuidanceReview(s,u){

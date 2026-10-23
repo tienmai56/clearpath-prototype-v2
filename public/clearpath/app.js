@@ -238,6 +238,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-action]')
  if(a==='student-tab'){if(value==='evidence')return navigateGoalWorkspace('notes',id||route().id);openStudentSection(id||route().id,value);setTimeout(()=>document.getElementById('student-tab-'+studentTab)?.focus(),0);return}
  if(a==='edit-plan'||a==='open-student-plan')return editPlan(id);
  if(a==='context')return contextModal(id);
+ if(a==='create-iep-goals')return goalModal(id,'',true);
  if(a==='new-lesson'){newLesson();return navigate('studio/create')}
  if(a==='student-assignment'){const g=activeGoal(id);newLesson(g?.domain||'reading','',[id]);return navigate('studio/create')}
  if(a==='suggest-lesson'){const s=getStudent(id),g=activeGoal(id),o=activeObjective(id);newLesson(g?.domain||s.domain,suggestionFor(s).change,[id]);if(o)lesson.objectiveIds[id]=o.id;return navigate('studio/create')}

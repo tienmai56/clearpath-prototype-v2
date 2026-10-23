@@ -15,17 +15,22 @@ function initializeGoalDetails(){
 function goalObjectiveFields(){
  return goalDraftEditor.objectives.map((o,i)=>`<div class="goal-objective-field"><div class="goal-objective-label"><label for="goal-objective-${i}">Objective ${i+1}</label>${!o.id&&i>0?`<button type="button" class="text-btn" data-action="remove-goal-objective" data-index="${i}" aria-label="Remove objective ${i+1}">Remove</button>`:''}</div><textarea id="goal-objective-${i}" name="goalObjective-${i}" data-goal-objective="${i}" rows="2" maxlength="1200" ${o.id?'required':''} placeholder="What smaller skill will the student work on?">${esc(o.skill)}</textarea></div>`).join('');
 }
-function goalModal(id,gid=''){
+function goalFromPresentLevels(s){
+ const present=intakeSession(s.id).savedDrafts.presentLevels||{},domain=s.domain||'reading';
+ return {title:domainNames[domain],content:goalSummaries[domain],domain,deadline:'2027-05-21',standard:'',baseline:String(present.baseline||present.summary||'').trim()};
+}
+function goalModal(id,gid='',fromPresentLevels=false){
  const s=students.find(s=>s.id===id),g=findGoal(id,gid);if(!s)return;
- goalDraftEditor={student:id,goalId:gid,returnWorkspace:route().page==='plans',objectives:g?.objectives.length?g.objectives.map(o=>({id:o.id,skill:o.skill})):[{id:null,skill:''}]};
- openModal(g?'Edit goal':'Add goal',s.name,`<form id="goal-form" class="goal-editor"><input type="hidden" name="student" value="${id}"><input type="hidden" name="goalId" value="${gid}">
-  <div class="field"><label for="goal-title">Goal name</label><input id="goal-title" name="title" required maxlength="160" placeholder="e.g. Story sequencing" value="${esc(g?.title||'')}"></div>
-  <div class="field"><label for="goal-content">Content</label><textarea id="goal-content" name="content" required rows="3" maxlength="2000" placeholder="What should the student be able to do?">${esc(g?.content||'')}</textarea></div>
-  <div class="field-row"><div class="field"><label for="goal-domain">Goal area</label><select id="goal-domain" name="domain">${Object.entries(domainNames).map(([v,l])=>`<option value="${v}" ${(g?.domain||s.domain)===v?'selected':''}>${l}</option>`).join('')}</select></div><div class="field"><label for="goal-deadline">Goal deadline</label><input id="goal-deadline" type="date" name="deadline" min="${g?.deadline&&g.deadline<TODAY?g.deadline:TODAY}" value="${g?.deadline||'2027-05-21'}" required></div></div>
-  <div class="field"><label for="goal-standard">Standard <span class="optional-label">Optional</span></label><textarea id="goal-standard" name="standard" rows="2" maxlength="600" placeholder="Standard or competency">${esc(g?.standard||'')}</textarea></div>
-  <div class="field"><label for="goal-baseline">Baseline <span class="optional-label">Optional</span></label><textarea id="goal-baseline" name="baseline" rows="2" maxlength="1200" placeholder="What can the student do now?">${esc(g?.baseline||'')}</textarea></div>
+ const draft=g||(fromPresentLevels?goalFromPresentLevels(s):{}),objectives=g?.objectives.length?g.objectives.map(o=>({id:o.id,skill:o.skill})):fromPresentLevels?draftObjectives(s,draft).map(o=>({id:null,skill:o.skill})):[{id:null,skill:''}];
+ goalDraftEditor={student:id,goalId:gid,returnWorkspace:route().page==='plans',objectives};
+ openModal(g?'Edit goal':fromPresentLevels?'Create IEP goals':'Add goal',fromPresentLevels?`${s.name} · Based on saved present levels`:s.name,`<form id="goal-form" class="goal-editor"><input type="hidden" name="student" value="${id}"><input type="hidden" name="goalId" value="${gid}">
+  <div class="field"><label for="goal-title">Goal name</label><input id="goal-title" name="title" required maxlength="160" placeholder="e.g. Story sequencing" value="${esc(draft.title||'')}"></div>
+  <div class="field"><label for="goal-content">Content</label><textarea id="goal-content" name="content" required rows="3" maxlength="2000" placeholder="What should the student be able to do?">${esc(draft.content||'')}</textarea></div>
+  <div class="field-row"><div class="field"><label for="goal-domain">Goal area</label><select id="goal-domain" name="domain">${Object.entries(domainNames).map(([v,l])=>`<option value="${v}" ${(draft.domain||s.domain)===v?'selected':''}>${l}</option>`).join('')}</select></div><div class="field"><label for="goal-deadline">Goal deadline</label><input id="goal-deadline" type="date" name="deadline" min="${g?.deadline&&g.deadline<TODAY?g.deadline:TODAY}" value="${draft.deadline||'2027-05-21'}" required></div></div>
+  <div class="field"><label for="goal-standard">Standard <span class="optional-label">Optional</span></label><textarea id="goal-standard" name="standard" rows="2" maxlength="600" placeholder="Standard or competency">${esc(draft.standard||'')}</textarea></div>
+  <div class="field"><label for="goal-baseline">Baseline <span class="optional-label">Optional</span></label><textarea id="goal-baseline" name="baseline" rows="2" maxlength="1200" placeholder="What can the student do now?">${esc(draft.baseline||'')}</textarea></div>
   <fieldset class="goal-objective-editor"><legend>Objectives</legend>${!g?'<p class="caption">Add skills below, or leave blank to generate objectives from the goal.</p>':''}<div id="goal-objective-fields">${goalObjectiveFields()}</div><button type="button" class="text-btn" data-action="add-goal-objective">+ Add objective</button></fieldset>
-  <div id="goal-error" aria-live="polite"></div><div class="modal-foot"><button type="button" class="btn" data-action="close">Cancel</button><button class="btn primary" type="submit">${g?'Save goal':'Add goal'}</button></div></form>`,{wide:true});
+  <div id="goal-error" aria-live="polite"></div><div class="modal-foot"><button type="button" class="btn" data-action="close">Cancel</button><button class="btn primary" type="submit">${g?'Save goal':fromPresentLevels?'Save IEP goal':'Add goal'}</button></div></form>`,{wide:true});
 }
 function rememberGoalObjectives(){
  if(!goalDraftEditor)return;

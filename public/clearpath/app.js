@@ -193,14 +193,19 @@ const lessonDefaults={
  math:{title:'Seeds for the school garden',source:'Maya has 8 seeds. Her friend brings 5 more seeds. How many seeds do they have altogether? Next, they plant 6 of the seeds. How many seeds are left?',directionsA:'Read each problem.\n1. Write the numbers you need.\n2. Choose addition or subtraction.\n3. Solve and check your answer.',directionsB:'Use the three boxes to organize your thinking.\n1. Write the numbers you need.\n2. Choose addition or subtraction.\n3. Solve and check your answer.',cueLabels:['Find the numbers','Choose an operation','Solve and check'],cueIcons:['search','plus','check'],a:'Numbered text steps',b:'Steps in visual boxes',change:'Visual boxes around the same problem-solving steps',measure:'Independent accuracy on a 5-item problem-solving probe'},
  writing:{title:'A moment in the garden',source:'Think of something you noticed in a garden or park. Write one complete sentence about it. Include who or what you saw and what happened.',directionsA:'Use this word bank if helpful: flower, leaf, bird, grew, flew, green.\nSay your idea aloud. Then write one sentence.\nCheck for a capital letter and ending punctuation.',directionsB:'Use the picture word bank if helpful: flower, leaf, bird, grew, flew, green.\nSay your idea aloud. Then write one sentence.\nCheck for a capital letter and ending punctuation.',cueLabels:['Choose an idea','Say your sentence','Write and check'],cueIcons:['bulb','message','edit'],a:'Text word bank',b:'Visual word bank',change:'Visual cues alongside the same writing steps',measure:'Independent success across 5 sentence-writing opportunities'}
 };
-function newLesson(domain='reading',context='',studentIds=[]){lesson=createLessonDraft(domain,context,studentIds);studioIntent='assignment';studioTab='draft';}
+function newLesson(domain='reading',context='',studentIds=[]){lesson=createLessonDraft(domain,context,studentIds);lesson.workflow='scratch';lesson.kind='lesson';if(studentIds.length)ensureAutomaticLessonTargets(lesson);studioIntent='assignment';studioTab='draft';}
 function studioView(){
  const view=route().id;
- if(!view)return `<div class="page-head"><div><h1>Generate assignments</h1><p class="subtitle">Materials for each student’s next step.</p></div></div><section class="assignment-start"><div><h2>Create assignments &amp; assessments</h2><p>Select students, choose their goals, then review an individual draft for each student.</p></div>${btn('Create assignment '+icon('arrow'),'new-lesson','primary')}</section><div class="creation-library"><a href="#studio/saved">Saved materials ${icon('arrow')}</a></div>`;
+ if(!view)return `<div class="page-head"><div><h1>Generate assignments</h1><p class="subtitle">Create personalized instruction for your IEP students.</p></div></div><div class="creation-cards" aria-label="Choose how to create lessons"><button class="creation-card" data-action="start-assignment-flow" data-mode="adapt"><span class="creation-icon">${icon('upload')}</span><h2>Adapt a class lesson</h2><p>Upload the lesson plan you use with the rest of the class. Clearpath creates a personalized version for each selected student.</p></button><button class="creation-card" data-action="start-assignment-flow" data-mode="scratch"><span class="creation-icon">${icon('spark')}</span><h2>Create from scratch</h2><p>Build lesson plans from each student’s present levels, IEP goals, and latest progress data already in Clearpath.</p></button></div>`;
  const back=`<a href="#studio" class="back">${icon('back')}Generate assignments</a>`;
- if(view==='saved')return back+`<div class="page-head"><h1>Saved materials</h1></div>`+savedMaterials();
+ if(view==='saved')return back+`<div class="page-head"><h1>Materials</h1></div>`+savedMaterials();
+ if(!lesson&&state.lesson)lesson=structuredClone(state.lesson);
  if(!lesson)newLesson();
- return back+`<div class="page-head"><div><h1>Create assignments</h1></div></div>`+assignmentSetupForm(lesson);
+ if(view==='processing')return lessonProcessingView(lesson);
+ if(view==='adapt')lesson.workflow='adapt';else if(view==='create')lesson.workflow='scratch';
+ if(view==='refine')return lessonRefineView(lesson);
+ if(view==='theme')return lessonThemeView(lesson);
+ return lessonTopicView(lesson);
 }
 function lessonForm(){return assignmentSetupForm(lesson)}
 function lessonObjectives(){return assignmentObjectives(lesson)}
@@ -241,9 +246,10 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-action]')
  if(a==='edit-plan'||a==='open-student-plan')return editPlan(id);
  if(a==='context')return contextModal(id);
  if(a==='create-iep-goals')return goalModal(id,'',true);
- if(a==='new-lesson'){newLesson();return navigate('studio/create')}
- if(a==='student-assignment'){const g=activeGoal(id);newLesson(g?.domain||'reading','',[id]);return navigate('studio/create')}
- if(a==='suggest-lesson'){const s=getStudent(id),g=activeGoal(id),o=activeObjective(id);newLesson(g?.domain||s.domain,suggestionFor(s).change,[id]);if(o)lesson.objectiveIds[id]=o.id;return navigate('studio/create')}
+ if(a==='start-assignment-flow'){newLesson();lesson.workflow=el.dataset.mode==='adapt'?'adapt':'scratch';state.lesson=structuredClone(lesson);persist();return navigate('studio/topic')}
+ if(a==='new-lesson'){newLesson();return navigate('studio/topic')}
+ if(a==='student-assignment'){const g=activeGoal(id);newLesson(g?.domain||'reading','',[id]);return navigate('studio/topic')}
+ if(a==='suggest-lesson'){const s=getStudent(id),g=activeGoal(id),o=activeObjective(id);newLesson(g?.domain||s.domain,suggestionFor(s).change,[id]);if(o)lesson.objectiveIds[id]=o.id;return navigate('studio/topic')}
  if(a==='show-note'){const sid=id||(route().page==='plans'?route().student:route().id);closeModal();notesSource='all';navigateGoalWorkspace('notes',sid);render();const note=document.getElementById(el.dataset.note);if(note){const group=note.closest?.('details');if(group)group.open=true;note.classList.add('note-highlight');note.focus?.({preventScroll:true});note.scrollIntoView?.({behavior:'smooth',block:'center'});}return}
  if(a==='studio-tab'){preserveLessonInputs();studioTab=value;return navigate('studio/'+(value==='draft'?'create':value))}
  if(a==='print')return window.print();
@@ -260,6 +266,8 @@ document.addEventListener('change',e=>{
  if(handleIntakeChange(e.target))return;
  if(handleGoalWorkspaceChange(e.target))return;
  if(handleProgressChange(e.target))return;
+ if(handleLessonPlanChange(e.target))return;
+ if(handleLessonWizardChange(e.target))return;
  if(handleAssignmentChange(e.target))return;
  if(e.target.id==='progress-goal'){const id=e.target.dataset.student;activeGoalIds[id]=e.target.value;delete activeObjectiveIds[id];render()}
  if(e.target.id==='progress-objective'){activeObjectiveIds[e.target.dataset.student]=e.target.value;render()}
@@ -267,12 +275,15 @@ document.addEventListener('change',e=>{
 });
 function formError(id,text){document.getElementById(id).innerHTML=`<div class="error" role="alert">${esc(text)}</div>`}
 function validObjective(d,g){return d.skill?.trim()&&d.condition?.trim()&&+d.target>0&&+d.target<=100&&Number.isInteger(+d.checks)&&+d.checks>0&&+d.checks<=10&&d.deadline>=TODAY&&d.deadline<=g.deadline}
-document.addEventListener('submit',e=>{const form=e.target;if(!['student-form','service-time-form','goal-form','objective-form','measurement-form','lesson-form','assignment-draft-form','context-form','log-form'].includes(form.id))return;e.preventDefault();const d=Object.fromEntries(new FormData(form));
+document.addEventListener('submit',e=>{const form=e.target;if(!['student-form','service-time-form','goal-form','objective-form','measurement-form','lesson-form','lesson-topic-form','lesson-refine-form','lesson-theme-form','assignment-draft-form','context-form','log-form'].includes(form.id))return;e.preventDefault();const d=Object.fromEntries(new FormData(form));
  if(form.id==='service-time-form')return saveServiceTime(d);
  if(form.id==='student-form'){const name=d.name.trim(),grade=+d.grade;if(!name||!Number.isInteger(grade)||grade<0||grade>12)return formError('student-error','Enter a name and grade.');const s={id:uid('student'),name,grade,initials:name.split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase(),color:'sage',domain:'reading',score:null,status:'evidence',last:'No records',points:[],isNew:true};students.push(s);state.addedStudents.push(s);state.goalPlans[s.id]=[];persist();closeModal();openStudentSection(s.id);toast('Student added.');}
  if(form.id==='goal-form')return saveGoalForm(d);
  if(form.id==='objective-form'){const g=findGoal(d.student,d.goalId);if(!g||!validObjective(d,g))return formError('objective-error','Check the skill, target, support, and date within the goal period.');const old=g.objectives.find(o=>o.id===d.objectiveId);const fields={skill:d.skill.trim(),condition:d.condition.trim(),target:+d.target,checks:+d.checks,deadline:d.deadline,status:'draft'};if(old){Object.assign(old,fields);delete old.completedAt;}else g.objectives.push({id:uid('objective'),...fields,sample:false});g.status='active';g.achievedAt=null;g.updatedAt=new Date().toISOString();persist();closeModal();render();toast('Objective saved for approval.');}
  if(form.id==='measurement-form'){const g=findGoal(d.student,d.goalId);if(!g||!d.method.trim()||+d.frequency<1||+d.frequency>5||d.review<TODAY||d.review>g.deadline)return formError('measurement-error','Check the measure, frequency, and review date.');g.measurement={method:d.method.trim(),frequency:d.frequency,review:d.review};persist();closeModal();render();toast('Measurement plan saved.');}
+ if(form.id==='lesson-topic-form')return submitLessonTopic(d);
+ if(form.id==='lesson-refine-form')return submitLessonRefine(d);
+ if(form.id==='lesson-theme-form')return submitLessonTheme(d);
  if(form.id==='lesson-form'||form.id==='assignment-draft-form')return submitAssignmentSetup(d,form);
  if(form.id==='context-form'){if(!d.author.trim()||!d.text.trim()||!d.dateISO)return;state.contexts.unshift({...d,author:d.author.trim(),text:d.text.trim(),id:uid('note'),date:formatDate(d.dateISO),initials:d.author.trim().split(/\s+/).map(s=>s[0]).join('').slice(0,2).toUpperCase(),color:'sage'});refreshGuidance(getStudent(d.student));persist();closeModal();render();toast('Note added. Guidance updated.')}
  if(form.id==='log-form')return saveProgressRecord(d,form);

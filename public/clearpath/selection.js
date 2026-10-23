@@ -16,6 +16,13 @@ function normalizeDraftSelection(draft){
 }
 function draftGoalsComplete(draft){return draft.studentIds.length>0&&draft.studentIds.every(id=>!!goalForDraft(draft,id))}
 function draftObjectivesComplete(draft){return draftGoalsComplete(draft)&&draft.studentIds.every(id=>!!objectiveForDraft(draft,id))}
+function automaticLessonTarget(draft,id){
+ const s=getStudent(id),plans=goalPlansFor(id),active=activeGoal(id),g=(approvedObjectives(active).length?active:null)||plans.find(g=>approvedObjectives(g).length)||active||plans[0],approved=approvedObjectives(g);
+ const selected=activeObjective(id),focus=focusMilestone(s,g),candidate=(selected&&g?.objectives.some(item=>item.id===selected.id)?selected:null)||focus,o=approved.find(item=>item.id===candidate?.id)||approved[0]||null;
+ if(g)draft.goalIds[id]=g.id;else delete draft.goalIds[id];
+ if(o&&approved.some(item=>item.id===o.id))draft.objectiveIds[id]=o.id;else delete draft.objectiveIds[id];
+}
+function ensureAutomaticLessonTargets(draft){normalizeDraftSelection(draft);for(const id of draft.studentIds)automaticLessonTarget(draft,id);syncDraftSelection(draft);}
 function syncDraftSelection(draft){
  normalizeDraftSelection(draft);
  const first=draft.studentIds.find(id=>goalForDraft(draft,id)),goal=first?goalForDraft(draft,first):null;
@@ -45,6 +52,12 @@ function assignmentSetupForm(draft,popup=false){
  const prefix=popup?'draft':'lesson',ready=draftObjectivesComplete(draft);
  return `<form class="plain-form lesson-setup selection-form ${popup?'draft-popup-form':''}" id="${popup?'assignment-draft-form':'lesson-form'}" data-assignment-setup="${popup?'popup':'page'}">${assignmentStudents(draft,prefix)}${assignmentGoals(draft,prefix)}${assignmentObjectives(draft,prefix)}${ready?`<div class="field material-type"><label for="${prefix}-kind">Material type</label><select id="${prefix}-kind" name="kind" data-assignment-field="kind"><option value="assignment" ${draft.kind==='assignment'?'selected':''}>Assignment</option><option value="assessment" ${draft.kind==='assessment'?'selected':''}>Assessment</option></select></div>`:''}<div id="${popup?'draft-error':'lesson-error'}"></div><div class="form-foot"><span class="caption">Demo: AI drafting is simulated.</span><button class="btn primary" type="submit" data-generate-material ${ready?'':'disabled'}>Generate ${draft.kind}</button></div></form>`;
 }
+function personalizedLessonStudentForm(draft,workflow='scratch'){
+ ensureAutomaticLessonTargets(draft);
+ const selected=draft.studentIds.length,missing=draft.studentIds.filter(id=>!objectiveForDraft(draft,id));
+ const isAdapt=workflow==='adapt',submitLabel=isAdapt?'Continue to upload':'Continue';
+ return `<form class="plain-form lesson-setup selection-form personalized-selection" id="lesson-students-form" data-assignment-setup="page" data-automatic-targets="true"><input type="hidden" name="workflow" value="${workflow}">${assignmentStudents(draft,'lesson')}<div class="automatic-sources" aria-label="Student information used for personalization"><span>${icon('check')}Present levels</span><span>${icon('check')}IEP goals</span><span>${icon('check')}Latest progress</span></div>${missing.length?`<div class="selection-warning" role="status">${esc(missing.map(id=>getStudent(id).name).join(', '))} ${missing.length===1?'needs':'need'} an approved IEP objective before a lesson can be created.</div>`:''}<div id="lesson-error"></div><div class="form-foot"><span class="caption">${selected?`${selected} ${selected===1?'student':'students'} selected`:'Choose one or more students.'}</span><button class="btn primary" type="submit" ${!selected||missing.length?'disabled':''}>${submitLabel} ${icon('arrow')}</button></div></form>`;
+}
 function redrawSelection(ctx,focusId=''){
  if(!ctx.popup){state.lesson=structuredClone(ctx.model);persist();}
  redrawDraft(ctx);
@@ -54,14 +67,14 @@ function handleAssignmentSelection(input,ctx){
  const d=ctx.model;normalizeDraftSelection(d);
  if(input.name==='lesson-student'){
   const id=input.value;d.studentIds=alphabeticalIds(input.checked?[...new Set([...d.studentIds,id])]:d.studentIds.filter(x=>x!==id));
-  delete d.goalIds[id];delete d.objectiveIds[id];d.studentPickerOpen=true;
+  delete d.goalIds[id];delete d.objectiveIds[id];if(input.checked&&ctx.automatic)automaticLessonTarget(d,id);d.studentPickerOpen=true;
  }else if(input.dataset.assignmentGoal){
   const id=input.dataset.assignmentGoal;d.goalIds[id]=input.value;delete d.objectiveIds[id];d.studentPickerOpen=false;
  }else if(input.dataset.assignmentObjective){
   const id=input.dataset.assignmentObjective,g=goalForDraft(d,id);if(!approvedObjectives(g).some(o=>o.id===input.value))delete d.objectiveIds[id];else d.objectiveIds[id]=input.value;d.studentPickerOpen=false;
  }else if(input.dataset.assignmentField==='kind'){d.kind=input.value;d.questions=input.value==='assessment'?5:3;}
  else return false;
- syncDraftSelection(d);redrawSelection(ctx,input.id||'');return true;
+ if(ctx.automatic)ensureAutomaticLessonTargets(d);else syncDraftSelection(d);redrawSelection(ctx,input.id||'');return true;
 }
 function handleSelectionAction(action,el){
  if(!['select-draft-students','close-student-picker'].includes(action))return false;
@@ -69,7 +82,7 @@ function handleSelectionAction(action,el){
  normalizeDraftSelection(d);
  if(action==='select-draft-students'){d.studentIds=alphabeticalStudents().map(s=>s.id);d.studentPickerOpen=true;}else d.studentPickerOpen=false;
 
- syncDraftSelection(d);redrawSelection(ctx,action==='close-student-picker'?((ctx.popup?'draft':'lesson')+'-goal-'+d.studentIds[0]):'');return true;
+ if(ctx.automatic)ensureAutomaticLessonTargets(d);else syncDraftSelection(d);redrawSelection(ctx,action==='close-student-picker'&&!ctx.automatic?((ctx.popup?'draft':'lesson')+'-goal-'+d.studentIds[0]):'');return true;
 }
 function filterAssignmentStudents(input){
  const menu=input.closest('.student-picker-menu'),value=input.value.trim().toLowerCase();if(!menu)return;

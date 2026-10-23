@@ -3,13 +3,15 @@
 let assignmentFlow=null;
 let richSelection=null;
 let assignmentSaveTimer=null;
+let lessonGenerationTimer=null;
+const LESSON_PLAN_LIMIT=20*1024*1024;
 function alphabeticalStudents(list=students){return list.slice().sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base',numeric:true}))}
 function alphabeticalIds(ids){return ids.slice().sort((a,b)=>getStudent(a).name.localeCompare(getStudent(b).name,'en',{sensitivity:'base',numeric:true}))}
 function gradeLabel(n){return +n===0?'Kindergarten':'Grade '+n}
-function materialLabel(kind){return kind==='assessment'?'Assessment':'Assignment'}
+function materialLabel(kind){return kind==='assessment'?'Assessment':kind==='lesson'?'Lesson plan':'Assignment'}
 function createLessonDraft(domain='reading',context='',studentIds=[]){
  const d=lessonDefaults[domain],grade=studentIds.length?getStudent(studentIds[0]).grade:3;
- const draft={id:uid('draft'),domain,grade,title:d.title,source:d.source,change:/one step|one direction/i.test(context)?'Show one instruction at a time':d.change,context,a:d.a,b:d.b,directionsA:d.directionsA,directionsB:d.directionsB,custom:false,studentIds:alphabeticalIds(studentIds.filter(id=>lessonGoalsFor(id,domain).length)),objectiveIds:{},kind:'assignment',withVariations:false,questions:3};
+ const draft={id:uid('draft'),domain,grade,title:d.title,source:d.source,change:/one step|one direction/i.test(context)?'Show one instruction at a time':d.change,context,a:d.a,b:d.b,directionsA:d.directionsA,directionsB:d.directionsB,custom:false,studentIds:alphabeticalIds(studentIds.filter(id=>lessonGoalsFor(id,domain).length)),objectiveIds:{},kind:'assignment',withVariations:false,questions:3,topic:'',instructions:'',duration:'45',language:'English',refinements:{standards:false,objectives:true,vocabulary:false,video:false,audio:false,activitySheet:false},theme:'low-stimulation'};
  for(const id of draft.studentIds)draft.objectiveIds[id]=defaultLessonObjective(id,domain)?.id;
  return draft;
 }
@@ -23,10 +25,10 @@ function openDraftingModal(id){
  assignmentFlow={stage:'setup',model,recordId:null};renderDraftingModal();
 }
 function renderDraftingModal(){const f=assignmentFlow;if(!f)return;openModal('Draft with AI',alphabeticalIds(f.model.studentIds).map(id=>getStudent(id).name).join(', '),assignmentSetupForm(f.model,true));}
-function draftContext(form){return {form,popup:form?.dataset?.assignmentSetup==='popup',model:form?.dataset?.assignmentSetup==='popup'?assignmentFlow?.model:lesson}}
+function draftContext(form){return {form,popup:form?.dataset?.assignmentSetup==='popup',automatic:form?.dataset?.automaticTargets==='true',model:form?.dataset?.assignmentSetup==='popup'?assignmentFlow?.model:lesson}}
 function preserveDraftInputs(model,form){
  if(!model||!form)return;
- for(const key of ['title','source','kind','change']){const input=form.querySelector?.(`[name="${key}"]`);if(input)model[key]=input.value;}
+ for(const key of ['title','source','kind','change','topic','instructions','duration','language']){const input=form.querySelector?.(`[name="${key}"]`);if(input)model[key]=input.value;}
 
 }
 function redrawDraft(ctx){if(ctx.popup)renderDraftingModal();else render()}
@@ -44,6 +46,7 @@ function submitAssignmentSetup(values,form){
  const kind=values.kind||draft.kind;
  if(!['assignment','assessment'].includes(kind))return formError(error,'Choose an assignment or assessment.');
  syncDraftSelection(draft);
+ delete draft.workflow;delete draft.upload;delete draft.generationPending;delete draft.generationError;
  Object.assign(draft,{title:values.title?.trim()||draft.title,source:values.source?.trim()||draft.source,kind,questions:kind==='assessment'?5:3,withVariations:false,change:values.change||draft.change});
  const original=lessonDefaults[draft.domain];draft.custom=draft.source!==original.source;
  if(!ctx.popup){state.lesson=structuredClone(draft);persist();}
@@ -51,11 +54,97 @@ function submitAssignmentSetup(values,form){
  if(!records)return formError(error,'Could not save the drafts. Free some browser storage and try again.');
  navigate('assignments/'+records[0].batchId);
 }
+function ensureLessonWizardDefaults(draft){
+ draft.topic ??='';draft.instructions ??='';draft.duration ||= '45';draft.language ||= 'English';draft.theme ||= 'low-stimulation';
+ draft.refinements={standards:false,objectives:true,vocabulary:false,video:false,audio:false,activitySheet:false,...draft.refinements};
+ return draft;
+}
+function lessonWizardSteps(active){
+ const steps=[['topic','Topic'],['refine','Refine'],['theme','Theme']],current=steps.findIndex(([key])=>key===active);
+ return `<nav class="lesson-wizard-steps" aria-label="Lesson creation steps">${steps.map(([key,label],i)=>`${i?'<span class="lesson-step-line" aria-hidden="true"></span>':''}${i<current?`<a href="#studio/${key}" class="lesson-step complete"><span>${i+1}</span><strong>${label}</strong></a>`:`<span class="lesson-step ${i===current?'active':''}" ${i===current?'aria-current="step"':''}><span>${i+1}</span><strong>${label}</strong></span>`}`).join('')}</nav>`;
+}
+function lessonPlanUploadField(draft){
+ const upload=draft.upload,required=draft.workflow==='adapt';
+ return `<section class="lesson-source"><div class="lesson-source-heading"><div><h2>${required?'Add your class lesson':'Add a lesson or resource'}</h2><p>${required?'Upload the lesson you want to personalize.':'Optional · Give Clearpath more context for the lesson.'}</p></div></div><div class="lesson-plan-drop ${upload?'has-file':''}">${upload?`${icon('plan')}<div><strong>${esc(upload.name)}</strong><small>${lessonFileSize(upload.size)}</small></div><button type="button" class="text-btn" data-action="remove-lesson-plan">Remove</button>`:`${icon('upload')}<h3>Drop a file here or choose from your device</h3><p>PDF, Word, PowerPoint, TXT, or RTF · Up to 20 MB</p><button type="button" class="btn" data-action="choose-lesson-plan">Choose file</button>`}</div><input id="lesson-plan-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.rtf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden><div id="lesson-upload-error" aria-live="polite"></div></section>`;
+}
+function lessonTopicView(draft){
+ ensureLessonWizardDefaults(draft);ensureAutomaticLessonTargets(draft);
+ const selected=draft.studentIds.length,missing=draft.studentIds.filter(id=>!objectiveForDraft(draft,id));
+ return `<div class="lesson-wizard">${lessonWizardSteps('topic')}<header class="lesson-wizard-heading"><p class="eyebrow">Create a personalized lesson</p><h1>Choose the topic and students</h1><p>Start with the lesson you need. Clearpath will use each student’s present levels, IEP goals, and latest progress.</p></header><form id="lesson-topic-form" class="lesson-wizard-form" data-assignment-setup="page" data-automatic-targets="true"><input type="hidden" name="workflow" value="${draft.workflow==='adapt'?'adapt':'scratch'}"><section class="lesson-wizard-card"><div class="lesson-field lesson-students-field"><h2>Students</h2>${assignmentStudents(draft,'lesson')}<div class="automatic-sources" aria-label="Student information used for personalization"><span>${icon('check')}Present levels</span><span>${icon('check')}IEP goals</span><span>${icon('check')}Latest progress</span></div>${missing.length?`<div class="selection-warning" role="status">${esc(missing.map(id=>getStudent(id).name).join(', '))} ${missing.length===1?'needs':'need'} an approved IEP objective before a lesson can be created.</div>`:''}</div><div class="lesson-field"><label for="lesson-topic">Lesson topic</label><input id="lesson-topic" name="topic" value="${esc(draft.topic)}" maxlength="160" required placeholder="e.g. The water cycle"></div><div class="lesson-quick-settings"><div class="lesson-setting-static"><span>Grade</span><strong>${esc(draftGradeLabel(draft))}</strong></div><label><span>Length</span><select name="duration"><option value="30" ${draft.duration==='30'?'selected':''}>30 minutes</option><option value="45" ${draft.duration==='45'?'selected':''}>45 minutes</option><option value="60" ${draft.duration==='60'?'selected':''}>60 minutes</option></select></label><label><span>Language</span><select name="language"><option ${draft.language==='English'?'selected':''}>English</option><option ${draft.language==='Spanish'?'selected':''}>Spanish</option></select></label></div><div class="lesson-field"><label for="lesson-instructions">Specific instructions <span>Optional</span></label><textarea id="lesson-instructions" name="instructions" rows="4" maxlength="1600" placeholder="What should the lesson emphasize?">${esc(draft.instructions)}</textarea></div>${lessonPlanUploadField(draft)}</section><div id="lesson-topic-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio">Cancel</a><button class="btn primary" type="submit" ${!selected||missing.length?'disabled':''}>Continue ${icon('arrow')}</button></div></form></div>`;
+}
+function lessonRefineOption(key,title,description,iconName){
+ const checked=!!lesson.refinements[key];
+ return `<label class="lesson-refine-option ${checked?'selected':''}"><input type="checkbox" name="${key}" ${checked?'checked':''}><span class="lesson-option-icon">${icon(iconName)}</span><span><strong>${esc(title)}</strong><small>${esc(description)}</small></span><span class="lesson-option-check" aria-hidden="true">${checked?icon('check'):''}</span></label>`;
+}
+function lessonRefineView(draft){
+ ensureLessonWizardDefaults(draft);
+ return `<div class="lesson-wizard">${lessonWizardSteps('refine')}<header class="lesson-wizard-heading"><p class="eyebrow">Step 2 of 3</p><h1>Refine your lesson</h1><p>Everything here is optional. Choose only what would help your students.</p></header><form id="lesson-refine-form" class="lesson-wizard-form"><section class="lesson-refine-group" aria-labelledby="refine-lesson-title"><h2 id="refine-lesson-title">Lesson</h2>${lessonRefineOption('standards','Align to standards','Connect the lesson to relevant grade-level standards.','book')}${lessonRefineOption('objectives','Learning goals and objectives','Include clear, student-friendly outcomes.','target')}${lessonRefineOption('vocabulary','Key vocabulary list','Highlight the words students need for this lesson.','note')}</section><section class="lesson-refine-group" aria-labelledby="refine-resources-title"><h2 id="refine-resources-title">Resources</h2>${lessonRefineOption('video','Video suggestion','Include a relevant classroom-safe video suggestion.','video')}${lessonRefineOption('audio','Audio activity','Add a short listening activity.','message')}${lessonRefineOption('activitySheet','Activity sheet','Include a print-ready practice activity.','print')}</section><div class="lesson-wizard-actions"><a class="btn" href="#studio/topic">Back</a><button class="btn primary" type="submit">Continue ${icon('arrow')}</button></div></form></div>`;
+}
+const lessonThemeLabels={'low-stimulation':'Low stimulation',dyslexia:'Dyslexia','low-vision':'Low vision',adhd:'ADHD'};
+function lessonThemeCard(key,title,description){
+ const checked=lesson.theme===key;
+ return `<label class="lesson-theme-card theme-${key} ${checked?'selected':''}" data-lesson-theme="${key}"><input type="radio" name="theme" value="${key}" ${checked?'checked':''}><span class="theme-selected">${checked?icon('check'):''}</span><span class="theme-name">${esc(title)}</span><span class="theme-sample-title">Explore the water cycle</span><span class="theme-sample-body">Water moves between the land, sky, and living things.</span><span class="theme-sample-accent">Key idea</span><small>${esc(description)}</small></label>`;
+}
+function lessonThemeView(draft){
+ ensureLessonWizardDefaults(draft);
+ return `<div class="lesson-wizard">${lessonWizardSteps('theme')}<header class="lesson-wizard-heading"><p class="eyebrow">Step 3 of 3</p><h1>Choose a learning-friendly theme</h1><p>Select a visual direction for this draft. These cards are previews only.</p></header><form id="lesson-theme-form" class="lesson-wizard-form"><fieldset class="lesson-theme-grid"><legend class="sr-only">Lesson theme</legend>${lessonThemeCard('low-stimulation','Low stimulation','Muted color, quiet spacing, and fewer visual distractions.')}${lessonThemeCard('dyslexia','Dyslexia','Readable type, generous spacing, and clear text structure.')}${lessonThemeCard('low-vision','Low vision','Large type and strong contrast for easier scanning.')}${lessonThemeCard('adhd','ADHD','Short sections, clear cues, and visible next steps.')}</fieldset><p class="theme-note">Theme previews are illustrative. Your lesson content will remain editable before you use it.</p><div id="lesson-theme-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio/refine">Back</a><button class="btn primary" type="submit">Generate lessons ${icon('spark')}</button></div></form></div>`;
+}
+function submitLessonTopic(values){
+ if(!lesson)return;ensureLessonWizardDefaults(lesson);ensureAutomaticLessonTargets(lesson);
+ const topic=String(values.topic??lesson.topic).trim(),instructions=String(values.instructions??lesson.instructions).trim();
+ if(!lesson.studentIds.length)return formError('lesson-topic-error','Select at least one student.');
+ if(!draftObjectivesComplete(lesson))return formError('lesson-topic-error','Each student needs an approved IEP objective before a lesson can be created.');
+ if(!topic)return formError('lesson-topic-error','Add a lesson topic to continue.');
+ if(lesson.workflow==='adapt'&&!lesson.upload)return formError('lesson-topic-error','Add the class lesson you want to personalize.');
+ Object.assign(lesson,{topic,instructions,duration:['30','45','60'].includes(values.duration)?values.duration:lesson.duration,language:['English','Spanish'].includes(values.language)?values.language:lesson.language,title:topic,kind:'lesson',studentPickerOpen:false});
+ state.lesson=structuredClone(lesson);persist();navigate('studio/refine');
+}
+function submitLessonRefine(values){
+ if(!lesson)return;ensureLessonWizardDefaults(lesson);
+ for(const key of Object.keys(lesson.refinements))lesson.refinements[key]=values[key]!==undefined&&values[key]!==false;
+ state.lesson=structuredClone(lesson);persist();navigate('studio/theme');
+}
+function submitLessonTheme(values){
+ if(!lesson)return;ensureLessonWizardDefaults(lesson);
+ if(!lessonThemeLabels[values.theme])return formError('lesson-theme-error','Choose a theme to continue.');
+ lesson.theme=values.theme;state.lesson=structuredClone(lesson);persist();beginLessonGeneration();
+}
+function lessonPlanFileType(file){
+ const extension=String(file?.name||'').split('.').pop().toLowerCase();
+ return ['pdf','doc','docx','ppt','pptx','txt','rtf'].includes(extension)?extension:'';
+}
+function lessonFileSize(size){return size<1024*1024?Math.max(1,Math.round(size/1024))+' KB':(size/(1024*1024)).toFixed(1)+' MB'}
+function setLessonPlanFile(file){
+ if(!lesson||!file)return;
+ const type=lessonPlanFileType(file);
+ if(!type)return formError('lesson-upload-error','Choose a PDF, Word, PowerPoint, text, or RTF lesson plan.');
+ if(file.size<=0||file.size>LESSON_PLAN_LIMIT)return formError('lesson-upload-error','Choose a lesson plan under 20 MB that is not empty.');
+ lesson.upload={name:file.name,size:file.size,type:file.type||type};state.lesson=structuredClone(lesson);persist();render();
+}
+function beginLessonGeneration(){
+ if(!lesson)return;
+ ensureAutomaticLessonTargets(lesson);lesson.kind='lesson';lesson.generationPending=true;lesson.generationError='';state.lesson=structuredClone(lesson);persist();navigate('studio/processing');queueLessonGeneration();
+}
+function queueLessonGeneration(){if(lessonGenerationTimer||!lesson?.generationPending)return;lessonGenerationTimer=setTimeout(finishLessonGeneration,1400)}
+function finishLessonGeneration(){
+ clearTimeout(lessonGenerationTimer);lessonGenerationTimer=null;
+ if(!lesson?.generationPending)return null;
+ ensureAutomaticLessonTargets(lesson);
+ const records=createStudentAssignments(lesson);
+ if(!records){lesson.generationPending=false;lesson.generationError='The lesson plans could not be saved. Free some browser storage and try again.';render();return null;}
+ lesson.generationPending=false;state.lesson=structuredClone(lesson);persist();navigate('assignments/'+records[0].batchId);return records;
+}
+function lessonProcessingView(draft){
+ queueLessonGeneration();
+ const count=draft.studentIds.length,adapted=draft.workflow==='adapt';
+ return `<section class="lesson-processing" aria-live="polite" aria-busy="${draft.generationPending?'true':'false'}"><div class="processing-mark"><span></span><span></span><span></span></div><p class="eyebrow">Creating ${count} personalized ${count===1?'lesson':'lessons'}</p><h1>${adapted?'Adapting your class lesson':'Building lessons from student needs'}</h1><p class="processing-lead">Clearpath is taking into account each student’s present levels, IEP goals, and latest data collection.</p><ol class="processing-steps"><li>${icon('check')}Reviewing present levels</li><li>${icon('check')}Aligning IEP goals and objectives</li><li>${icon('check')}Applying the latest progress data</li>${adapted?`<li>${icon('check')}Adapting ${esc(draft.upload?.name||'your uploaded lesson')}</li>`:''}</ol>${draft.generationError?`<div class="error" role="alert">${esc(draft.generationError)}</div>`:'<p class="caption">This usually takes less than a minute.</p>'}</section>`;
+}
 // A generation is one batch, with an independently editable document per student.
 function createStudentAssignments(draft,{revisionOf=null,applyGuidance=false}={}){
  const batchId=uid('batch'),now=new Date().toISOString(),base=state.assignments.find(a=>a.id===revisionOf);
  const records=alphabeticalIds(draft.studentIds).map(id=>{
-  const model=materialForStudent(draft,id),record={id:uid('assignment'),batchId,kind:model.kind,title:model.title,model,studentIds:[id],objectiveIds:structuredClone(model.objectiveIds),html:buildAssignmentHTML(model),status:'draft',createdAt:now,updatedAt:now,modifiedAt:null,revisionOf:base?.studentIds.includes(id)?base.id:null};
+  const model=materialForStudent(draft,id);if(model.workflow)model.kind='lesson';if(model.kind==='lesson')model.title=personalizedLessonTitle(model,id);
+  const record={id:uid('assignment'),batchId,kind:model.kind,title:model.title,model,studentIds:[id],objectiveIds:structuredClone(model.objectiveIds),html:model.kind==='lesson'?buildPersonalizedLessonHTML(model):buildAssignmentHTML(model),status:'draft',createdAt:now,updatedAt:now,modifiedAt:null,revisionOf:base?.studentIds.includes(id)?base.id:null};
   if(applyGuidance&&base?.studentIds.length===1&&base.studentIds[0]===id){
    const previous=sanitizeRichHTML(base.html),appendix=base.guidanceAppendix;
    const body=appendix&&previous.endsWith(appendix)?previous.slice(0,-appendix.length):previous;
@@ -77,7 +166,9 @@ function assignmentOverview(id){
  const batch=assignmentBatches().find(b=>b.id===id);
  if(!batch)return `<div class="empty"><h2>Assignment not found</h2><a href="#studio" data-action="back-materials" class="btn">Back to saved materials</a></div>`;
  const rows=batch.records.flatMap(record=>record.studentIds.map(id=>({record,student:getStudent(id)}))).sort((a,b)=>a.student.name.localeCompare(b.student.name,'en',{sensitivity:'base'}));
- return `<a href="#studio" data-action="back-materials" class="back">${icon('back')}Saved materials</a><div class="page-head"><div><h1>Assignment overview</h1><p class="subtitle">${rows.length} ${rows.length===1?'student':'students'} · ${batch.records.length} ${batch.records.length===1?'draft':'drafts'} created</p></div></div><div class="table-card"><div class="table-wrap"><table class="roster assignment-overview"><caption class="sr-only">Students and their generated assignments</caption><thead><tr><th scope="col">Student</th><th scope="col">Assignment</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows.map(({record:r,student:s})=>`<tr><td><a class="student-name" href="#student/${s.id}">${avatar(s)}<span class="name-text">${esc(s.name)}<small>${gradeLabel(s.grade)}</small></span></a></td><td><span class="material-title">${esc(r.title)}</span>${r.revisionOf?'<small class="material-detail">Revised draft</small>':''}</td><td><span class="material-status">${r.status==='ready'?'Saved':'Draft'}</span></td><td class="material-action">${btn('Open draft','open-assignment','small',`data-id="${r.id}" aria-label="Open draft for ${esc(s.name)}"`)}</td></tr>`).join('')}</tbody></table></div></div><div class="overview-footer">${btn('Create another assignment','new-lesson')}</div>`;
+ const lessonPlans=batch.records.every(record=>record.kind==='lesson'),heading=lessonPlans?'Personalized lesson plans':'Assignment overview';
+ const summary=lessonPlans?`${rows.length} personalized ${rows.length===1?'lesson':'lessons'} ready to review`:`${rows.length} ${rows.length===1?'student':'students'} · ${batch.records.length} ${batch.records.length===1?'draft':'drafts'} created`;
+ return `<a href="#studio/saved" class="back">${icon('back')}Materials</a><div class="page-head"><div><h1>${heading}</h1><p class="subtitle">${summary}</p></div></div><div class="table-card"><div class="table-wrap"><table class="roster assignment-overview"><caption class="sr-only">Students and their generated ${lessonPlans?'lesson plans':'assignments'}</caption><thead><tr><th scope="col">Student</th><th scope="col">${lessonPlans?'Personalized lesson':'Assignment'}</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows.map(({record:r,student:s})=>`<tr><td><a class="student-name" href="#student/${s.id}">${avatar(s)}<span class="name-text">${esc(s.name)}<small>${gradeLabel(s.grade)}</small></span></a></td><td><span class="material-title">${esc(r.title)}</span>${r.revisionOf?'<small class="material-detail">Revised draft</small>':lessonPlans?`<small class="material-detail">Built from ${r.model.workflow==='adapt'?'your class lesson':'student learning data'}</small>`:''}</td><td><span class="material-status">${r.status==='ready'?'Saved':'Ready to review'}</span></td><td class="material-action"><div class="material-actions">${btn(lessonPlans?'Open lesson':'Open draft','open-assignment','small',`data-id="${r.id}" aria-label="Open ${lessonPlans?'lesson':'draft'} for ${esc(s.name)}"`)}${lessonPlans?btn(icon('print')+'Print / save PDF','print-lesson','small',`data-id="${r.id}" aria-label="Print or save ${esc(s.name)}’s lesson as PDF"`):''}</div></td></tr>`).join('')}</tbody></table></div></div><div class="overview-footer"><a class="btn" href="#studio">Create more lessons</a></div>`;
 }
 function materialDate(value,empty='—'){
  if(!value||!Number.isFinite(Date.parse(value)))return `<span class="muted">${empty}</span>`;
@@ -91,6 +182,27 @@ function assignmentHistory(s){
 function studentMaterials(s){
  const records=state.assignments.filter(r=>r.studentIds.includes(s.id)).sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
  return `<div class="student-materials"><section class="content-section"><div class="section-row"><h2>Assignments & assessments</h2><span class="caption no-margin">${records.length} materials</span></div>${records.length?`<div class="table-wrap"><table class="assignment-audit"><caption class="sr-only">Materials for ${esc(s.name)}</caption><thead><tr><th>Material</th><th>Created</th><th>Last modified</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${records.map(r=>{const goal=goalForDraft(r.model,s.id);return `<tr><td><span class="material-title">${esc(r.title)}</span><small class="material-detail">${r.revisionOf?'Revised '+r.kind:materialLabel(r.kind)}${goal?' · '+esc(goal.title):''}</small></td><td>${materialDate(r.createdAt,'Not recorded')}</td><td>${materialDate(materialModifiedAt(r))}</td><td>${r.status==='ready'?'Saved':'Draft'}</td><td class="material-action">${btn('Open draft','open-assignment','small',`data-id="${r.id}"`)}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="section-description">Assignments and assessments created for this student will appear here.</p>'}</section></div>`;
+}
+function personalizedLessonTitle(d,id){
+ if(d.workflow==='adapt'){
+  const base=String(d.upload?.name||'Class lesson').replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim();
+  return `${base||'Class lesson'} · Personalized for ${getStudent(id).name.split(' ')[0]}`;
+ }
+ return `${d.topic||domainNames[d.domain]||'Personalized lesson'} · ${getStudent(id).name.split(' ')[0]}`;
+}
+function lessonPresentLevel(s,g){
+ const saved=intakeSession(s.id).savedDrafts.presentLevels||{},example=typeof presentLevelExample==='function'?presentLevelExample(s):null;
+ const name=s.name.split(' ')[0],fallback={reading:`${name} is working on sequencing events and explaining story details independently.`,math:`${name} is working on choosing operations and solving one-step problems independently.`,writing:`${name} is working on turning complete oral ideas into written sentences independently.`}[g?.domain||s.domain];
+ return [saved.summary,example?.summary,saved.baseline,g?.baseline,fallback].find(value=>String(value||'').trim()&&!/^\s*\[/.test(String(value)))||'Review current performance before teaching.';
+}
+function buildPersonalizedLessonHTML(d){
+ const id=d.studentIds[0],s=getStudent(id),g=goalForDraft(d,id),o=objectiveForDraft(d,id),evidence=milestoneEvidence(s,o),latest=evidence[evidence.length-1],guidance=guidanceFor(s);
+ const supports=guidance.length?guidance.map(item=>item.step||`${item.title}. ${item.detail}`):['Use the student’s usual accommodations.','Present one clear direction, then check understanding before continuing.'];
+ const baseline=lessonPresentLevel(s,g),source=d.workflow==='adapt'?`Adapted from the uploaded class lesson: ${d.upload?.name||'class lesson plan'}.`:'Created from the student information currently saved in Clearpath.';
+ const data=latest?`The latest progress check was ${latest.score}% independent accuracy on ${formatDate(latest.date)}.`:'No recent progress check is available; begin with a brief understanding check.';
+ const measurement=g?.measurement?.method||defaultMeasures[d.domain]||'brief teacher-recorded check';
+ const steps=d.workflow==='adapt'?[`Open with the same learning target and core activity as the class lesson.`,`Preview ${o?.skill||g?.title||'the target skill'} in a short, concrete example.`,`Teach the class activity using the personalized supports below.`,`End with a brief independent check aligned to the student’s IEP objective.`]:[`Name the learning target in student-friendly language and connect it to prior learning.`,`Model one example of ${o?.skill||g?.title||'the target skill'}.`,`Guide practice with the personalized supports below.`,`Fade prompts and collect a short independent response.`];
+ return sanitizeRichHTML(`<h2>${esc(d.title)}</h2><p><strong>Student:</strong> ${esc(s.name)} &nbsp; <strong>Grade:</strong> ${esc(gradeLabel(s.grade))}</p><p><strong>Source:</strong> ${esc(source)}</p><h3>Instructional focus</h3><p><strong>IEP goal:</strong> ${esc(g?.content||g?.title||'Review the student’s current IEP goal.')}</p><p><strong>Current objective:</strong> ${esc(o?.skill||'Review the next approved objective.')}</p><h3>What Clearpath considered</h3><p><strong>Present levels:</strong> ${esc(baseline)}</p><p><strong>Latest data:</strong> ${esc(data)}</p><h3>Lesson sequence</h3><ol>${steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><h3>Personalized instruction</h3><ul>${supports.map(step=>`<li>${esc(step)}</li>`).join('')}</ul><h3>Quick progress check</h3><p>Use ${esc(measurement)} to record what ${esc(s.name.split(' ')[0])} can do independently. Keep prompted responses separate and note which supports were used.</p><h3>Teacher reflection</h3><p>What helped? ________________________________________________</p><p>What should change next time? _________________________________</p>`);
 }
 function buildAssignmentHTML(d){
  if(d.studentIds?.length>1)return sanitizeRichHTML(`<h2>${esc(d.title)}</h2>`+alphabeticalIds(d.studentIds).map(id=>{const model=materialForStudent(d,id),o=objectiveForDraft(d,id);return `<h3>${esc(getStudent(id).name)} · ${esc(domainNames[model.domain])}</h3>${o?`<p>Objective: ${esc(o.skill)}</p>`:''}`+buildStudentAssignmentHTML(model).replace(/^<h2>[\s\S]*?<\/h2>/,'');}).join(''));
@@ -129,7 +241,7 @@ function openAssignmentEditor(id){
  const record=state.assignments.find(a=>a.id===id);if(!record)return;
  assignmentFlow={stage:'editor',recordId:id,model:structuredClone(record.model),returnStudent:route().page==='student'?route().id:route().page==='plans'?route().student:null};richSelection=null;
  const names=alphabeticalIds(record.studentIds).map(id=>getStudent(id).name).join(', '),targets=record.studentIds.map(id=>{const o=objectiveForDraft(record.model,id);return o?getStudent(id).name+': '+o.skill:'';}).filter(Boolean);
- openModal(`${materialLabel(record.kind)} draft`,names,`<div class="assignment-editor-shell"><div class="editor-context"><span>${draftGradeLabel(record.model)} · ${draftAreaLabel(record.model)}</span><details><summary>Target objective${targets.length>1?'s':''}</summary><p>${targets.map(esc).join('; ')}</p></details></div><div class="rich-toolbar" role="toolbar" aria-label="Text formatting">${richButton('bold','<b>B</b>','Bold')}${richButton('italic','<i>I</i>','Italic')}${richButton('underline','<u>U</u>','Underline')}<span class="toolbar-divider"></span>${richButton('heading','H','Heading')}${richButton('paragraph','¶','Paragraph')}<span class="toolbar-divider"></span>${richButton('insertUnorderedList','• List','Bulleted list')}${richButton('insertOrderedList','1. List','Numbered list')}<span class="toolbar-divider"></span>${richButton('undo','↶','Undo')}${richButton('redo','↷','Redo')}</div><div class="assignment-paper"><div id="assignment-editor" class="rich-editor" contenteditable="true" role="textbox" aria-label="Edit assignment content" aria-multiline="true" spellcheck="true">${sanitizeRichHTML(record.html)}</div></div><div id="assignment-editor-error" aria-live="polite"></div><div class="editor-meta"><span id="assignment-save-state" role="status">Draft saved in this browser</span><span>Demo draft · Review before use</span></div><div class="modal-foot editor-footer"><button class="text-btn" data-action="edit-assignment-setup">Change selections</button><div class="actions">${btn(icon('print')+'Print','print-assignment')}${btn('Save '+record.kind,'save-assignment','primary')}</div></div></div>`,{wide:true,printable:true});
+ openModal(`${materialLabel(record.kind)} draft`,names,`<div class="assignment-editor-shell"><div class="editor-context"><span>${draftGradeLabel(record.model)} · ${draftAreaLabel(record.model)}</span><details><summary>Target objective${targets.length>1?'s':''}</summary><p>${targets.map(esc).join('; ')}</p></details></div><div class="rich-toolbar" role="toolbar" aria-label="Text formatting">${richButton('bold','<b>B</b>','Bold')}${richButton('italic','<i>I</i>','Italic')}${richButton('underline','<u>U</u>','Underline')}<span class="toolbar-divider"></span>${richButton('heading','H','Heading')}${richButton('paragraph','¶','Paragraph')}<span class="toolbar-divider"></span>${richButton('insertUnorderedList','• List','Bulleted list')}${richButton('insertOrderedList','1. List','Numbered list')}<span class="toolbar-divider"></span>${richButton('undo','↶','Undo')}${richButton('redo','↷','Redo')}</div><div class="assignment-paper"><div id="assignment-editor" class="rich-editor" contenteditable="true" role="textbox" aria-label="Edit ${record.kind==='lesson'?'lesson plan':'assignment'} content" aria-multiline="true" spellcheck="true">${sanitizeRichHTML(record.html)}</div></div><div id="assignment-editor-error" aria-live="polite"></div><div class="editor-meta"><span id="assignment-save-state" role="status">Draft saved in this browser</span><span>Demo draft · Review before use</span></div><div class="modal-foot editor-footer">${record.kind==='lesson'?'<span class="caption no-margin">Print dialog includes a Save as PDF option.</span>':'<button class="text-btn" data-action="edit-assignment-setup">Change selections</button>'}<div class="actions">${btn(icon('print')+(record.kind==='lesson'?'Print / save PDF':'Print'),'print-assignment')}${btn('Save '+(record.kind==='lesson'?'lesson plan':record.kind),'save-assignment','primary')}</div></div></div>`,{wide:true,printable:true});
 }
 function flushAssignmentEditor(finalize=false){
  if(assignmentFlow?.stage!=='editor')return true;
@@ -160,8 +272,11 @@ function formatAssignment(command){
 }
 function handleAssignmentAction(action,el){
  if(handleSelectionAction(action,el))return true;
+ if(action==='choose-lesson-plan'){document.getElementById('lesson-plan-file')?.click();return true;}
+ if(action==='remove-lesson-plan'){if(lesson){preserveDraftInputs(lesson,el.closest?.('form'));delete lesson.upload;state.lesson=structuredClone(lesson);persist();render();}return true;}
  if(action==='guided-materials'){openDraftingModal(el.dataset.id);return true;}
  if(action==='open-assignment'){openAssignmentEditor(el.dataset.id);return true;}
+ if(action==='print-lesson'){openAssignmentEditor(el.dataset.id);setTimeout(()=>window.print(),50);return true;}
  if(action==='open-assignment-overview'){navigate('assignments/'+el.dataset.id);return true;}
  if(action==='back-materials'){studioTab='saved';navigate('studio/saved');return true;}
  if(action==='rich-format'){formatAssignment(el.dataset.command);return true;}
@@ -174,9 +289,16 @@ function handleAssignmentAction(action,el){
  return false;
 }
 function handleAssignmentInput(event){if(event.target.dataset?.assignmentSearch!==undefined){filterAssignmentStudents(event.target);return true;}if(event.target.id==='assignment-editor'||event.target.closest?.('#assignment-editor')){queueAssignmentSave();return true;}return false;}
+function handleLessonPlanChange(input){if(input.id!=='lesson-plan-file')return false;preserveDraftInputs(lesson,input.closest?.('form'));setLessonPlanFile(Array.from(input.files||[])[0]);return true;}
+function handleLessonWizardChange(input){
+ if(!lesson)return false;
+ if(input.closest?.('#lesson-refine-form')&&Object.hasOwn(ensureLessonWizardDefaults(lesson).refinements,input.name)){lesson.refinements[input.name]=!!input.checked;state.lesson=structuredClone(lesson);persist();return true;}
+ if(input.closest?.('#lesson-theme-form')&&input.name==='theme'&&lessonThemeLabels[input.value]){lesson.theme=input.value;state.lesson=structuredClone(lesson);persist();return true;}
+ return false;
+}
 function savedMaterials(){
- const items=assignmentBatches().map(b=>({type:'single',id:b.id,title:new Set(b.records.map(r=>r.title)).size===1?b.records[0].title:'Individual '+(b.records[0].kind==='assessment'?'assessments':'assignments'),studentIds:[...new Set(b.records.flatMap(r=>r.studentIds))],model:b.records[0].model,kind:b.records[0].kind,createdAt:b.records[0].createdAt||b.records[0].updatedAt})).sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
- if(!items.length)return `<div class="empty"><h3>No saved materials</h3><p class="small">Assignments and assessments appear here.</p><div class="top-space">${btn('Create assignment','new-lesson','primary')}</div></div>`;
+ const items=assignmentBatches().map(b=>({type:'single',id:b.id,title:new Set(b.records.map(r=>r.title)).size===1?b.records[0].title:b.records[0].kind==='lesson'?'Personalized lesson plans':'Individual '+(b.records[0].kind==='assessment'?'assessments':'assignments'),studentIds:[...new Set(b.records.flatMap(r=>r.studentIds))],model:b.records[0].model,kind:b.records[0].kind,createdAt:b.records[0].createdAt||b.records[0].updatedAt})).sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
+ if(!items.length)return `<div class="empty"><h3>No materials yet</h3><p class="small">Personalized lessons, assignments, and assessments appear here.</p></div>`;
  return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${materialLabel(d.kind)} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),'open-assignment-overview','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
 }
 document.addEventListener('selectionchange',rememberRichSelection);

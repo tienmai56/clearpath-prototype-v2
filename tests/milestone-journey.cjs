@@ -76,7 +76,7 @@ test('New student notes affect milestone guidance, while milestone-specific note
 });
 
 test('Lesson variants are gone from every entry point; previous evidence remains readable',()=>{
- const e=withPresentLevels(environment());e.view('studio');assert(!/lesson variants|Teaching plans|two versions/i.test(e.html()));assert(e.html().includes('Create assignments &amp; assessments'));
+ const e=withPresentLevels(environment());e.view('studio');assert(!/lesson variants|Teaching plans|two versions/i.test(e.html()));assert(e.html().includes('Adapt a class lesson'));assert(e.html().includes('Create from scratch'));
  e.view('studio/variants');assert.equal(e.run('location.hash'),'#studio');e.view('comparison/sample');assert.equal(e.run('location.hash'),'#studio');
  e.click('new-variants');assert.equal(e.run('location.hash'),'#studio');e.submit('comparison-form',{start:'2026-10-09',review:'2026-10-23',frequency:'3'});assert.equal(e.run('state.comparisons.length'),0);
  e.run(`state.comparisons.push({id:'legacy',title:'Past instruction',groups:{a:[],b:['amir']},objectiveIds:{amir:'goal-amir-o3'},lesson:{b:'Visual boxes'}});state.logs.unshift({id:'legacy-log',student:'amir',goal:'goal-amir',objective:'goal-amir-o3',comparison:'legacy',date:TODAY,score:80,note:'Worked independently.'});state.drafts.push({id:'old-draft',title:'Old variants',studentIds:['amir']});persist()`);

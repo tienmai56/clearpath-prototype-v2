@@ -11,6 +11,7 @@ const html=fs.readFileSync(path.join(root,'app/workspace.html'),'utf8');
 const context=vm.createContext({
  localStorage:{getItem(){return null},setItem(){}},
  document:{addEventListener(){}},window:{print(){},scrollTo(){}},
+ students:[{id:'ava',name:'Ava Carter'},{id:'amir',name:'Amir Hassan'}],
  icon(name){return `<svg data-icon="${name}"></svg>`},
  esc(value){return String(value)},
  console
@@ -22,14 +23,23 @@ assert.match(appSource,/dataCollectionView\(\)/);
 assert.match(html,/data-collection\.js/);
 const uploadView=vm.runInContext('dataCollectionView()',context);
 assert.match(uploadView,/Accuracy - Upload data sheets/);
+assert.match(uploadView,/Select student/);
+assert.match(uploadView,/Ava Carter/);
+assert.match(uploadView,/id="collection-files"[^>]*disabled/);
 assert.match(uploadView,/Click to upload/);
 assert.match(uploadView,/Use your phone/);
 assert.match(uploadView,/Naturalistic group data sheet/);
 assert.doesNotMatch(uploadView,/Use this layout/);
 assert.doesNotMatch(collectionSource,/Use this layout/);
 assert.match(vm.runInContext("collectionResult('accuracy').rule",context),/Only “\+” counts as correct/);
+vm.runInContext("collectionState.studentId='ava'",context);
+const readyUploadView=vm.runInContext('dataCollectionView()',context);
+assert.match(readyUploadView,/For Ava Carter/);
+assert.doesNotMatch(readyUploadView,/id="collection-files"[^>]*disabled/);
 vm.runInContext("collectionState.files=[{name:'Naturalistic group data sheet.jpg',size:102400,type:'image/jpeg',source:'sample',previewURL:'/clearpath/naturalistic-data-sheet.jpg'}];collectionState.stage='review';collectionState.method='accuracy'",context);
 const reviewView=vm.runInContext('dataCollectionView()',context);
+assert.match(reviewView,/collection-review-student/);
+assert.match(reviewView,/value="ava" selected/);
 assert.match(reviewView,/4 correct/);
 assert.match(reviewView,/1 not correct/);
 assert.match(reviewView,/min-width:0/);

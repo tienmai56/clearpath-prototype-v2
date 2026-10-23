@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {readFileSync,writeFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 const {environment}=require('./harness.cjs');
 import {handlePhotoTransfer} from '../lib/photo-transfer.ts';
-const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys = ON');sql.exec(readFileSync(new URL('../drizzle/0000_bent_kitty_pryde.sql',import.meta.url),'utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec('PRAGMA foreign_keys = ON');for(const name of readdirSync(new URL('../drizzle',import.meta.url)).filter(n=>n.endsWith('.sql')).sort())sql.exec(readFileSync(new URL('../drizzle/'+name,import.meta.url),'utf8'));
 const objects=new Map();
 const DB={prepare(query){
  const prepared=sql.prepare(query);

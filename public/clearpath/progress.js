@@ -9,13 +9,11 @@ const EVIDENCE_COUNT=5;
 
 function objectivePosition(id,g,o){return `Goal ${goalPlansFor(id).indexOf(g)+1} · Objective ${g.objectives.indexOf(o)+1}`}
 function openProgressModal(id,comparison=''){
- if(!comparison){const current=currentTeachingPlan(id,activeObjective(id)?.id);if(current&&!current.completedAt)comparison=current.id;}
- const c=state.comparisons.find(x=>x.id===comparison),target=c?.objectiveIds?.[id];
- let g=target?goalPlansFor(id).find(g=>g.objectives.some(o=>o.id===target)):activeGoal(id);
- let o=target?g?.objectives.find(o=>o.id===target):activeObjective(id);
+ const g=activeGoal(id),o=activeObjective(id);comparison='';
  if(!g||!o||o.status!=='approved')return toast('Establish an objective in the IEP plan first.');
  clearProgressCapture();
- progressCapture={student:id,goal:g.id,objective:o.id,comparison,step:1,mode:'upload',files:[],values:{correct:'',attempts:'5',support:'independent',date:TODAY,note:'',phase:c?.baseline==='new'&&trialBaseline(c,id)===null?'baseline':'followup'},saving:false};
+ const plan=interventionFor(id,o.id);
+ progressCapture={student:id,goal:g.id,objective:o.id,comparison,step:1,mode:'upload',files:[],values:{correct:'',attempts:'5',support:'independent',date:TODAY,note:'',strategy:plan?.title||'',intervention:plan?.id||'',phase:'followup'},saving:false};
  renderProgressModal();
 }
 function renderProgressModal(){
@@ -40,19 +38,20 @@ function evidencePicker(){
 
 function fileSize(size){return size<1024*1024?Math.max(1,Math.round(size/1024))+' KB':(size/(1024*1024)).toFixed(1)+' MB'}
 function recordProgressStep(g,o){
- const p=progressCapture,v=p.values,c=state.comparisons.find(c=>c.id===p.comparison);
+ const p=progressCapture,v=p.values;
  return `<form id="log-form" class="capture-form"><input type="hidden" name="student" value="${p.student}"><input type="hidden" name="goal" value="${g.id}"><input type="hidden" name="objective" value="${o.id}"><input type="hidden" name="comparison" value="${esc(p.comparison)}">
  ${p.mode!=='manual'?`<div class="attached-summary">${icon('plan')}<span>${p.files.length} ${p.files.length===1?'file':'files'} attached</span><button type="button" class="text-btn" data-action="progress-back">View files</button></div><p class="capture-hint">Enter the result from the student’s work.</p>`:''}
  <div class="field-row"><div class="field"><label for="log-correct">Independent correct answers</label><input id="log-correct" name="correct" type="number" min="0" max="100" required inputmode="numeric" value="${esc(v.correct)}" placeholder="0"></div><div class="field"><label for="log-attempts">Total opportunities</label><input id="log-attempts" name="attempts" type="number" min="1" max="100" value="${esc(v.attempts)}" required inputmode="numeric"></div></div>
  <div id="score-preview" class="caption score-preview">${v.correct!==''?`${Math.round(+v.correct/+v.attempts*100)}% independent accuracy`:'Count answers completed without adult prompts.'}</div>
  <div class="field-row"><div class="field"><label for="log-support">Additional support</label><select id="log-support" name="support">${[['independent','None'],['verbal','Verbal prompts'],['guided','Guided support']].map(([key,text])=>`<option value="${key}" ${v.support===key?'selected':''}>${text}</option>`).join('')}</select></div><div class="field"><label for="log-date">Date</label><input id="log-date" name="date" type="date" max="${TODAY}" value="${esc(v.date)}" required></div></div>
- ${c?`<div class="field"><label for="log-phase">${esc(c.title)}</label><select id="log-phase" name="phase"><option value="followup" ${v.phase==='followup'?'selected':''}>Progress check during this plan</option><option value="baseline" ${v.phase==='baseline'?'selected':''}>Starting result</option></select></div>`:'<input type="hidden" name="phase" value="followup">'}
+ <input type="hidden" name="phase" value="followup"><input type="hidden" name="intervention" value="${esc(v.intervention)}">
+ <div class="field strategy-field"><label for="log-strategy">What did you try? <span class="optional-label">Optional</span></label><input id="log-strategy" name="strategy" maxlength="160" value="${esc(v.strategy)}" placeholder="e.g. Model the first step"><small>Links this result to the approach you used.</small></div>
  <details class="disclosure" ${v.note?'open':''}><summary>Add a note</summary><div class="field"><label for="log-note" class="sr-only">Observation</label><textarea id="log-note" name="note" rows="2" maxlength="2000" placeholder="What helped or made the task harder?">${esc(v.note)}</textarea></div></details>
  <div id="log-error" aria-live="polite"></div><div class="modal-foot capture-foot"><button type="button" class="btn" data-action="progress-back">${icon('back')} Back</button><button class="btn primary" type="submit">Save progress</button></div></form>`;
 }
 function rememberProgressInputs(){
  const form=document.getElementById('log-form');if(!progressCapture||!form)return;
- for(const key of ['correct','attempts','support','date','note','phase']){const input=form.querySelector(`[name="${key}"]`);if(input)progressCapture.values[key]=input.value;}
+ for(const key of ['correct','attempts','support','date','note','phase','strategy','intervention']){const input=form.querySelector(`[name="${key}"]`);if(input)progressCapture.values[key]=input.value;}
 }
 function handleProgressAction(action,el){
  if(handleMobileTransferAction(action))return true;
@@ -136,17 +135,18 @@ async function saveProgressRecord(d,form){
  const correct=+d.correct,attempts=+d.attempts;
  if(d.correct===''||!Number.isInteger(correct)||!Number.isInteger(attempts)||attempts<1||attempts>100||correct<0||correct>attempts)return formError('log-error','Correct answers must be between zero and the total.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(d.date)||Number.isNaN(Date.parse(d.date))||d.date>TODAY)return formError('log-error','Choose a date on or before today.');
- const plan=state.comparisons.find(c=>c.id===p.comparison);if(plan&&d.phase!=='baseline'&&d.date<trialStart(plan))return formError('log-error','Choose a check date on or after this teaching plan starts.');
+ if(String(d.strategy||'').trim().length>160)return formError('log-error','Keep the approach under 160 characters.');
+ const intervention=state.interventions.find(x=>x.id===d.intervention&&x.student===d.student&&x.objective===d.objective&&(!x.start||d.date>=x.start)&&x.title===String(d.strategy||'').trim());
  if(p.mode!=='manual'&&!p.files.length)return formError('log-error','Go back and add a file, or choose Enter manually.');
  p.saving=true;
  const submit=form.querySelector?.('[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Saving…';}
  let attachments=[];
  try{
   attachments=await saveEvidenceFiles(p.mode==='manual'?[]:p.files);
-  const record={...d,id:uid('log'),correct,attempts,score:Math.round(correct/attempts*100),attachments,entryMethod:p.mode,support:d.support==='verbal'?'Verbal prompts on other opportunities':d.support==='guided'?'Guided support on other opportunities':'No extra help'};
+  const record={...d,strategy:String(d.strategy||'').trim(),intervention:intervention?.id||'',id:uid('log'),correct,attempts,score:Math.round(correct/attempts*100),attachments,entryMethod:p.mode,support:d.support==='verbal'?'Verbal prompts on other opportunities':d.support==='guided'?'Guided support on other opportunities':'No extra help'};
   state.logs.unshift(record);
   if(!persist()){state.logs=state.logs.filter(l=>l.id!==record.id);throw new Error('Progress could not be saved. Browser storage may be full.');}
-  p.saving=false;const returnToClass=p.returnToClass,comparison=p.comparison;closeModal();render();if(returnToClass)openClassProgress(comparison);toast('Progress saved.');
+  p.saving=false;closeModal();render();toast('Progress saved.');
  }catch(error){
   await removeEvidenceFiles(attachments.map(f=>f.id));p.saving=false;
   formError('log-error',error.message||'Files could not be saved. Try smaller files or enter manually.');

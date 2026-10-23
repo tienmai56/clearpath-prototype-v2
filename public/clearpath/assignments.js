@@ -27,7 +27,7 @@ function draftContext(form){return {form,popup:form?.dataset?.assignmentSetup===
 function preserveDraftInputs(model,form){
  if(!model||!form)return;
  for(const key of ['title','source','kind','change']){const input=form.querySelector?.(`[name="${key}"]`);if(input)model[key]=input.value;}
- const variation=form.querySelector?.('[name="withVariations"]');if(variation)model.withVariations=variation.checked;
+
 }
 function redrawDraft(ctx){if(ctx.popup)renderDraftingModal();else render()}
 function handleAssignmentChange(input){
@@ -39,25 +39,13 @@ function submitAssignmentSetup(values,form){
  const ctx=draftContext(form),draft=ctx.model,error=ctx.popup?'draft-error':'lesson-error';if(!draft)return;
  if(!draft.studentIds.length)return formError(error,'Select at least one student.');
  normalizeDraftSelection(draft);
- const variations=!ctx.popup&&studioIntent==='variations';if(variations)reconcileSharedTargets(draft);
- if(variations&&(draft.studentIds.length<2||new Set(draft.studentIds.map(id=>getStudent(id).grade)).size!==1))return formError(error,'Choose at least two students in the same grade.');
- if(variations&&!selectedSharedGoal(draft))return formError(error,'Select a goal shared by all selected students.');
- if(variations&&!selectedSharedObjective(draft))return formError(error,'Select an established objective shared by all selected students for this goal.');
  if(!draftGoalsComplete(draft))return formError(error,'Select a goal for each student.');
  if(!draftObjectivesComplete(draft))return formError(error,'Select an established objective from each chosen goal.');
  const kind=values.kind||draft.kind;
  if(!['assignment','assessment'].includes(kind))return formError(error,'Choose an assignment or assessment.');
- if(variations&&!canCompareDraft(draft))return formError(error,'Choose a shared goal and objective for at least two students in the same grade.');
  syncDraftSelection(draft);
- Object.assign(draft,{title:values.title?.trim()||draft.title,source:values.source?.trim()||draft.source,kind,questions:kind==='assessment'?5:3,withVariations:variations,change:values.change||draft.change});
+ Object.assign(draft,{title:values.title?.trim()||draft.title,source:values.source?.trim()||draft.source,kind,questions:kind==='assessment'?5:3,withVariations:false,change:values.change||draft.change});
  const original=lessonDefaults[draft.domain];draft.custom=draft.source!==original.source;
- if(draft.withVariations){
-  draft.a=original.a;draft.b=draft.change==='Show one instruction at a time'?'One step at a time':original.b;
-  draft.directionsA=draft.custom?'Read the lesson.\nIdentify the key information.\nExplain your answer.\nReview your work.':original.directionsA;
-  draft.directionsB=draft.custom?'Use the visual structure to organize your thinking.\nIdentify the key information.\nExplain your answer.\nReview your work.':original.directionsB;
-  if(draft.change==='Show one instruction at a time')draft.directionsB=draft.directionsA+'\n\nTeacher: reveal one numbered direction at a time.';
-  lesson=draft;state.lesson=structuredClone(lesson);persist();studioStep=2;groups={a:[],b:[]};cohort=lesson.studentIds.slice();render();toast('Variations created.');return;
- }
  if(!ctx.popup){state.lesson=structuredClone(draft);persist();}
  const records=createStudentAssignments(draft,{revisionOf:ctx.popup?assignmentFlow.recordId:null});
  if(!records)return formError(error,'Could not save the drafts. Free some browser storage and try again.');
@@ -97,21 +85,12 @@ function materialDate(value,empty='—'){
 }
 function materialModifiedAt(record){return Object.prototype.hasOwnProperty.call(record,'modifiedAt')?record.modifiedAt:record.updatedAt}
 function assignmentHistory(s){
- const records=[...state.assignments.filter(a=>a.studentIds.includes(s.id)).map(a=>({...a,type:'assignment'})),...state.drafts.filter(d=>d.studentIds?.includes(s.id)).map(d=>({...d,type:'variations'}))].sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
- return `<section class="assignment-history" aria-labelledby="assignment-history-heading"><div class="section-row"><h2 id="assignment-history-heading">Assignment history</h2></div>${records.length?`<div class="table-wrap"><table class="assignment-audit"><caption class="sr-only">Assignments, creation dates and last modifications for ${esc(s.name)}</caption><thead><tr><th scope="col">Assignment</th><th scope="col">Created</th><th scope="col">Last modified</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${records.map(r=>`<tr><td><span class="material-title">${esc(r.title)}</span><small class="material-detail">${r.type==='variations'?'Two lesson versions':r.revisionOf?'Revised '+r.kind:materialLabel(r.kind)}</small></td><td>${materialDate(r.createdAt,'Not recorded')}</td><td>${materialDate(materialModifiedAt(r))}</td><td class="material-action">${btn('Open',r.type==='variations'?'open-draft':'open-assignment','small',`data-id="${r.id}" aria-label="Open ${esc(r.title)}"`)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="section-description">No assignments created yet.</p>'}</section>`;
+ const records=state.assignments.filter(a=>a.studentIds.includes(s.id)).sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
+ return `<section class="assignment-history" aria-labelledby="assignment-history-heading"><div class="section-row"><h2 id="assignment-history-heading">Assignment history</h2></div>${records.length?`<div class="table-wrap"><table class="assignment-audit"><caption class="sr-only">Assignments, creation dates and last modifications for ${esc(s.name)}</caption><thead><tr><th scope="col">Assignment</th><th scope="col">Created</th><th scope="col">Last modified</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${records.map(r=>`<tr><td><span class="material-title">${esc(r.title)}</span><small class="material-detail">${r.revisionOf?'Revised '+r.kind:materialLabel(r.kind)}</small></td><td>${materialDate(r.createdAt,'Not recorded')}</td><td>${materialDate(materialModifiedAt(r))}</td><td class="material-action">${btn('Open','open-assignment','small',`data-id="${r.id}" aria-label="Open ${esc(r.title)}"`)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="section-description">No assignments created yet.</p>'}</section>`;
 }
 function studentMaterials(s){
  const records=state.assignments.filter(r=>r.studentIds.includes(s.id)).sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
- const plans=state.comparisons.filter(c=>trialStudents(c).includes(s.id)).slice().reverse();
- const drafts=state.drafts.filter(d=>d.studentIds?.includes(s.id));
- return `<div class="student-materials"><section class="content-section"><div class="section-row"><h2>Assignments & assessments</h2><span class="caption no-margin">${records.length} materials</span></div>${records.length?`<div class="table-wrap"><table class="assignment-audit"><caption class="sr-only">Materials for ${esc(s.name)}</caption><thead><tr><th>Material</th><th>Created</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${records.map(r=>{const goal=goalForDraft(r.model,s.id);return `<tr><td><span class="material-title">${esc(r.title)}</span><small class="material-detail">${r.revisionOf?'Revised '+r.kind:materialLabel(r.kind)}${goal?' · '+esc(goal.title):''}</small></td><td>${materialDate(r.createdAt,'Not recorded')}</td><td>${r.status==='ready'?'Saved':'Draft'}</td><td class="material-action">${btn('Open draft','open-assignment','small',`data-id="${r.id}"`)}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="section-description">Assignments and assessments created for this student will appear here.</p>'}</section><section class="content-section"><div class="section-row"><h2>Teaching plans</h2></div>${plans.length?plans.map(c=>{const v=c.decisions?.[s.id]||trialVersion(c,s.id);return `<article class="student-plan-row"><div><h3>${esc(c.title)}</h3><p>${esc(c.lesson[v])} · ${trialPhaseLabel(c)}</p><small>Starts ${formatDate(trialStart(c))} · Review ${formatDate(c.review)} · ${c.frequency} progress checks / week</small></div><div class="actions">${btn('View lesson','trial-lesson','small',`data-id="${c.id}" data-version="${v}"`)}<a class="btn small" href="#comparison/${c.id}">View plan</a></div></article>`;}).join(''):'<p class="section-description">No teaching plans for this student yet.</p>'}</section>${drafts.length?`<section class="content-section"><h2>Lesson variant drafts</h2>${drafts.map(d=>`<article class="student-plan-row"><div><h3>${esc(d.title)}</h3><p>Two versions · Not scheduled</p></div>${btn('Open versions','open-draft','small',`data-id="${d.id}"`)}</article>`).join('')}</section>`:''}</div>`;
-}
-function saveVariationDraft(){
- const index=state.drafts.findIndex(d=>d.id===lesson.id),old=state.drafts[index],now=new Date().toISOString();
- const content=d=>JSON.stringify({...d,createdAt:undefined,updatedAt:undefined,modifiedAt:undefined,studentPickerOpen:undefined});
- const changed=old&&content(old)!==content(lesson),record={...structuredClone(lesson),createdAt:old?old.createdAt||null:now,updatedAt:changed||!old?now:old.updatedAt,modifiedAt:changed?now:old?materialModifiedAt(old)||null:null};
- const before=state.drafts.slice();if(index<0)state.drafts.unshift(record);else state.drafts[index]=record;
- if(!persist()){state.drafts=before;return false;}return true;
+ return `<div class="student-materials"><section class="content-section"><div class="section-row"><h2>Assignments & assessments</h2><span class="caption no-margin">${records.length} materials</span></div>${records.length?`<div class="table-wrap"><table class="assignment-audit"><caption class="sr-only">Materials for ${esc(s.name)}</caption><thead><tr><th>Material</th><th>Created</th><th>Last modified</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${records.map(r=>{const goal=goalForDraft(r.model,s.id);return `<tr><td><span class="material-title">${esc(r.title)}</span><small class="material-detail">${r.revisionOf?'Revised '+r.kind:materialLabel(r.kind)}${goal?' · '+esc(goal.title):''}</small></td><td>${materialDate(r.createdAt,'Not recorded')}</td><td>${materialDate(materialModifiedAt(r))}</td><td>${r.status==='ready'?'Saved':'Draft'}</td><td class="material-action">${btn('Open draft','open-assignment','small',`data-id="${r.id}"`)}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="section-description">Assignments and assessments created for this student will appear here.</p>'}</section></div>`;
 }
 function buildAssignmentHTML(d){
  if(d.studentIds?.length>1)return sanitizeRichHTML(`<h2>${esc(d.title)}</h2>`+alphabeticalIds(d.studentIds).map(id=>{const model=materialForStudent(d,id),o=objectiveForDraft(d,id);return `<h3>${esc(getStudent(id).name)} · ${esc(domainNames[model.domain])}</h3>${o?`<p>Objective: ${esc(o.skill)}</p>`:''}`+buildStudentAssignmentHTML(model).replace(/^<h2>[\s\S]*?<\/h2>/,'');}).join(''));
@@ -186,7 +165,7 @@ function handleAssignmentAction(action,el){
  if(action==='open-assignment-overview'){navigate('assignments/'+el.dataset.id);return true;}
  if(action==='back-materials'){studioTab='saved';navigate('studio/saved');return true;}
  if(action==='rich-format'){formatAssignment(el.dataset.command);return true;}
- if(action==='save-assignment'){if(flushAssignmentEditor(true)){const record=state.assignments.find(a=>a.id===assignmentFlow.recordId);const student=assignmentFlow.returnStudent;if(student){studentTab='materials';navigate('student/'+student);}else navigate('assignments/'+(record.batchId||record.id));toast('Material saved.');}return true;}
+ if(action==='save-assignment'){if(flushAssignmentEditor(true)){const record=state.assignments.find(a=>a.id===assignmentFlow.recordId);const student=assignmentFlow.returnStudent;if(student){openStudentSection(student,'iep','materials');}else navigate('assignments/'+(record.batchId||record.id));toast('Material saved.');}return true;}
  if(action==='print-assignment'){if(flushAssignmentEditor())window.print();return true;}
  if(action==='edit-assignment-setup'){
   if(!flushAssignmentEditor())return true;
@@ -196,9 +175,9 @@ function handleAssignmentAction(action,el){
 }
 function handleAssignmentInput(event){if(event.target.dataset?.assignmentSearch!==undefined){filterAssignmentStudents(event.target);return true;}if(event.target.id==='assignment-editor'||event.target.closest?.('#assignment-editor')){queueAssignmentSave();return true;}return false;}
 function savedMaterials(){
- const items=[...assignmentBatches().map(b=>({type:'single',id:b.id,title:new Set(b.records.map(r=>r.title)).size===1?b.records[0].title:'Individual '+(b.records[0].kind==='assessment'?'assessments':'assignments'),studentIds:[...new Set(b.records.flatMap(r=>r.studentIds))],model:b.records[0].model,kind:b.records[0].kind,createdAt:b.records[0].createdAt||b.records[0].updatedAt})),...state.drafts.map(d=>({type:'variations',...d}))].sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
- if(!items.length)return `<div class="empty"><h3>No saved materials</h3><p class="small">Assignments, assessments and variations appear here.</p><div class="top-space">${btn('Create assignment','new-lesson','primary')}</div></div>`;
- return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${d.type==='single'?materialLabel(d.kind):'Two variations'} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),d.type==='single'?'open-assignment-overview':'open-draft','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
+ const items=assignmentBatches().map(b=>({type:'single',id:b.id,title:new Set(b.records.map(r=>r.title)).size===1?b.records[0].title:'Individual '+(b.records[0].kind==='assessment'?'assessments':'assignments'),studentIds:[...new Set(b.records.flatMap(r=>r.studentIds))],model:b.records[0].model,kind:b.records[0].kind,createdAt:b.records[0].createdAt||b.records[0].updatedAt})).sort((a,b)=>(b.createdAt||b.updatedAt||'').localeCompare(a.createdAt||a.updatedAt||''));
+ if(!items.length)return `<div class="empty"><h3>No saved materials</h3><p class="small">Assignments and assessments appear here.</p><div class="top-space">${btn('Create assignment','new-lesson','primary')}</div></div>`;
+ return `<div class="saved-materials">${items.map(d=>`<article class="saved-draft"><div><h4>${esc(d.title)}</h4><p>${materialLabel(d.kind)} · ${esc(alphabeticalIds(d.studentIds||[]).map(id=>getStudent(id).name).join(', ')||'Select students')}</p></div>${btn('Open '+icon('arrow'),'open-assignment-overview','small',`data-id="${d.id}"`)}</article>`).join('')}</div>`;
 }
 document.addEventListener('selectionchange',rememberRichSelection);
 document.addEventListener('mousedown',e=>{if(e.target.closest?.('.rich-toolbar button'))e.preventDefault();});

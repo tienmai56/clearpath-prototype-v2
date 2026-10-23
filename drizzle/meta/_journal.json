@@ -8,6 +8,13 @@
       "when": 1791592797842,
       "tag": "0000_bent_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792132716532,
+      "tag": "0001_stiff_purple_man",
+      "breakpoints": true
     }
   ]
 }

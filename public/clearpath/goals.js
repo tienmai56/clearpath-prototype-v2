@@ -47,18 +47,18 @@ function saveGoalForm(d){
  const newSkills=[];let objectivesChanged=false;
  for(const [key,value] of entries){const index=+key.split('-')[1],skill=String(value).trim(),old=g.objectives[index];
   if(skill.length>1200||old&&!skill)return formError('goal-error','Add a skill for each existing objective.');
-  if(old&&old.skill!==skill){old.skill=skill;old.status='draft';old.sample=false;objectivesChanged=true;}
+  if(old&&old.skill!==skill){old.skill=skill;old.status='draft';old.sample=false;delete old.completedAt;objectivesChanged=true;}
   else if(!old&&skill)newSkills.push(skill);
  }
  const total=g.objectives.length+newSkills.length;
  newSkills.forEach(skill=>g.objectives.push(goalObjectiveDraft(g,skill,g.objectives.length,total)));
  if(!g.objectives.length)g.objectives=draftObjectives(s,g);
- if(changed){for(const o of g.objectives){o.status='draft';if(o.deadline>d.deadline)o.deadline=d.deadline;}if(g.measurement.review>d.deadline)g.measurement.review=d.deadline;}
+ if(changed){for(const o of g.objectives){o.status='draft';delete o.completedAt;if(o.deadline>d.deadline)o.deadline=d.deadline;}if(g.measurement.review>d.deadline)g.measurement.review=d.deadline;}
  if(changed||objectivesChanged||newSkills.length){g.status='active';g.achievedAt=null;}
  const oldGoals=state.goalPlans[s.id]||[],first=!oldGoals.length,oldDomain=s.domain;
  state.goalPlans[s.id]=previous?oldGoals.map(x=>x.id===g.id?g:x):[...oldGoals,g];if(first)s.domain=g.domain;
  if(!persist()){state.goalPlans[s.id]=oldGoals;s.domain=oldDomain;return formError('goal-error','Could not save the goal. Try again after freeing browser storage.');}
- const returnWorkspace=goalDraftEditor?.returnWorkspace;activeGoalIds[s.id]=g.id;delete activeObjectiveIds[s.id];closeModal();if(returnWorkspace){workspaceGoalIds[s.id]=g.id;workspaceObjectiveIds[s.id]=g.objectives[0]?.id||'';navigateGoalWorkspace('goal',s.id);}else{studentTab='plan';navigate('student/'+s.id);}toast(previous?'Goal saved.':'Goal added. Review its objectives.');
+ const returnWorkspace=goalDraftEditor?.returnWorkspace;activeGoalIds[s.id]=g.id;delete activeObjectiveIds[s.id];closeModal();if(returnWorkspace){workspaceGoalIds[s.id]=g.id;workspaceObjectiveIds[s.id]=g.objectives[0]?.id||'';navigateGoalWorkspace('goal',s.id);}else{openStudentSection(s.id,'iep','plan');}toast(previous?'Goal saved.':'Goal added. Review its objectives.');
 }
 function setGoalAchievement(id,gid,achieved){
  const g=findGoal(id,gid);if(!g)return;

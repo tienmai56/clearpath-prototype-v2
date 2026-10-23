@@ -53,7 +53,7 @@ test('Notes moves to the workspace, preserves the student between tabs, and reta
  assert.equal(e.run('notesSource'),'all');assert(group.open);assert(focused);assert(e.html().includes('Jordan Bell'));
 });
 
-test('Class guidance alerts and legacy notes navigation land in the new Notes tab',()=>{
+test('Student guidance and legacy notes navigation land in the Notes tab',()=>{
  const e=environment();e.click('review-guidance',{id:'ava'});assert.equal(e.run('location.hash'),'#plans/notes/ava');assert(e.modal().includes('Recommended lesson update'));
  e.view('plans/notes/ava');assert(e.modal().includes('Create revised draft'));e.click('show-note',{id:'ava',note:'sample-note-ava-0'});assert.equal(e.modal(),'');assert(e.run('hasNewGuidance("ava")'));
  e.run("studentTab='evidence'");e.view('student/amir');assert.equal(e.run('location.hash'),'#plans/notes/amir');

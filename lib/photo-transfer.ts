@@ -1,7 +1,8 @@
 import qrcode from 'qrcode-generator';
+import {IntakeError,ensureIntake,readIntakeFile,INTAKE_FILE_COUNT} from './intake-storage.ts';
 
 type Bindings = { DB: D1Database; BUCKET: R2Bucket };
-type Session = { id: string; owner: string; token_hash: string; student: string; objective: string; expires: number; max_files: number; file_count: number };
+type Session = { id: string; owner: string; token_hash: string; student: string; objective: string; expires: number; max_files: number; file_count: number; intake_id: string|null };
 type Photo = { id: string; session: string; name: string; type: string; size: number; object_key: string; delivered: number; created: number };
 const MAX_SIZE = 10 * 1024 * 1024;
 const TTL = 15 * 60 * 1000;
@@ -28,7 +29,7 @@ function photoType(bytes: Uint8Array) {
 async function removeSession(env: Bindings, id: string) {
   // Close first so an in-flight upload cannot become visible after cancellation.
   await env.DB.prepare('UPDATE photo_sessions SET expires = 0 WHERE id = ?').bind(id).run();
-  const { results } = await env.DB.prepare('SELECT object_key FROM photo_files WHERE session = ?').bind(id).all<{object_key: string}>();
+  const { results } = await env.DB.prepare('SELECT object_key FROM photo_files WHERE session = ? AND object_key NOT IN (SELECT object_key FROM intake_files)').bind(id).all<{object_key: string}>();
   if (results.length) await env.BUCKET.delete(results.map(f => f.object_key));
   await env.DB.prepare('DELETE FROM photo_sessions WHERE id = ?').bind(id).run();
 }
@@ -44,15 +45,16 @@ export async function handlePhotoTransfer(request: Request, env: Bindings): Prom
       for (const row of expired) await removeSession(env,row.id);
       const active = await env.DB.prepare('SELECT count(*) AS count FROM photo_sessions WHERE owner = ? AND expires > ?').bind(owner,Date.now()).first<{count:number}>();
       if ((active?.count || 0) >= 10) throw new TransferError(429, 'Close another mobile upload, then try again.');
-      let input: {student?:unknown;objective?:unknown;maxFiles?:unknown};
+      let input: {student?:unknown;objective?:unknown;maxFiles?:unknown;purpose?:unknown;studentId?:unknown};
       try { input = JSON.parse(new TextDecoder().decode(await readBody(request,4096))); } catch (e) { if(e instanceof TransferError) throw e; throw new TransferError(400,'Invalid upload request.'); }
       if (!input || typeof input !== 'object') throw new TransferError(400,'Invalid upload request.');
       const student = typeof input.student === 'string' ? input.student.trim().slice(0,100) : '';
       const objective = typeof input.objective === 'string' ? input.objective.trim().slice(0,300) : '';
       const maxFiles = Number(input.maxFiles);
-      if (!student || !Number.isInteger(maxFiles) || maxFiles < 1 || maxFiles > 5) throw new TransferError(400,'Select a student and allow 1–5 photos.');
+      if (!student || !Number.isInteger(maxFiles) || maxFiles < 1 || maxFiles > (input.purpose==='present-levels'?10:5)) throw new TransferError(400,'Choose a valid number of files for this upload.');
+      const intake=input.purpose==='present-levels'?await ensureIntake(env,owner,typeof input.studentId==='string'?input.studentId:''):null;
       const id = crypto.randomUUID(), key = token(), expires = Date.now()+TTL;
-      await env.DB.prepare('INSERT INTO photo_sessions (id,owner,token_hash,student,objective,expires,max_files,file_count) VALUES (?,?,?,?,?,?,?,0)').bind(id,owner,await hash(key),student,objective,expires,maxFiles).run();
+      await env.DB.prepare('INSERT INTO photo_sessions (id,owner,token_hash,student,objective,expires,max_files,file_count,intake_id) VALUES (?,?,?,?,?,?,?,0,?)').bind(id,owner,await hash(key),student,objective,expires,maxFiles,intake?.id||null).run();
       const link = new URL('/phone',url.origin); link.searchParams.set('session',id);link.searchParams.set('key',key);
       const qr = qrcode(0,'M');qr.addData(link.toString());qr.make();
       return json({id,key,expires,url:link.toString(),qr:qr.createSvgTag({cellSize:4,margin:16,scalable:true})},201);
@@ -65,29 +67,34 @@ export async function handlePhotoTransfer(request: Request, env: Bindings): Prom
     if (session.expires <= Date.now()) throw new TransferError(410,'This QR code has expired. Create a new code on your computer.');
     if (parts.length === 1 && request.method === 'GET') {
       const {results} = await env.DB.prepare('SELECT id,name,type,size,delivered FROM photo_files WHERE session = ? ORDER BY created,id').bind(session.id).all();
-      return json({student:session.student,objective:session.objective,expires:session.expires,remaining:Math.max(0,session.max_files-session.file_count),files:results});
+      return json({student:session.student,objective:session.objective,purpose:session.intake_id?'present-levels':'progress',expires:session.expires,remaining:Math.max(0,session.max_files-session.file_count),files:results});
     }
     if (parts[1] === 'photos' && parts.length === 2 && request.method === 'POST') {
-      const bytes = await readBody(request,MAX_SIZE), type = photoType(bytes);
-      if (request.headers.get('content-type')?.split(';')[0] !== type) throw new TransferError(415,'Photo format does not match its file type. Choose a JPG or PNG.');
+      const document=session.intake_id?await readIntakeFile(request):null;
+      const bytes=document?.bytes||await readBody(request,MAX_SIZE), type=document?.type||photoType(bytes);
+      if (!document&&request.headers.get('content-type')?.split(';')[0] !== type) throw new TransferError(415,'Photo format does not match its file type. Choose a JPG or PNG.');
       const reserved = await env.DB.prepare('UPDATE photo_sessions SET file_count = file_count + 1 WHERE id = ? AND file_count < max_files AND expires > ? RETURNING file_count').bind(session.id,Date.now()).first();
       if (!reserved) throw new TransferError(409,'This upload is full or has ended. Check your computer.');
       const id = crypto.randomUUID(), objectKey = `photo-transfer/${session.id}/${id}`;
       const rawName = (url.searchParams.get('name') || 'Student work').replace(/[\x00-\x1f/\\]/g,'').slice(0,100).replace(/\.[^.]+$/,'');
-      const name = (rawName || 'Student work')+(type==='image/png'?'.png':'.jpg');
+      const name = document?.name||(rawName || 'Student work')+(type==='image/png'?'.png':'.jpg');
       try {
         await env.BUCKET.put(objectKey,bytes,{httpMetadata:{contentType:type}});
         const active = await env.DB.prepare('SELECT id FROM photo_sessions WHERE id = ? AND expires > ?').bind(session.id,Date.now()).first();
         if (!active) throw new TransferError(410,'This upload has ended. Create a new code on your computer.');
         const inserted = await env.DB.prepare('INSERT INTO photo_files (id,session,name,type,size,object_key,delivered,created) SELECT ?,?,?,?,?,?,0,? WHERE EXISTS (SELECT id FROM photo_sessions WHERE id = ? AND expires > ?)').bind(id,session.id,name,type,bytes.length,objectKey,Date.now(),session.id,Date.now()).run();
         if (!inserted.meta.changes) throw new TransferError(410,'This upload has ended. Create a new code on your computer.');
-      } catch (error) { await env.BUCKET.delete(objectKey);await env.DB.prepare('UPDATE photo_sessions SET file_count = file_count - 1 WHERE id = ?').bind(session.id).run();throw error; }
+        if(session.intake_id){
+          const saved=await env.DB.prepare('INSERT INTO intake_files (id,intake,name,type,size,object_key,source,created) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT id FROM photo_sessions WHERE id = ? AND expires > ?) AND (SELECT count(*) FROM intake_files WHERE intake = ?) < ?').bind(id,session.intake_id,name,type,bytes.length,objectKey,'phone',Date.now(),session.id,Date.now(),session.intake_id,INTAKE_FILE_COUNT).run();
+          if(!saved.meta.changes)throw new TransferError(409,'The upload has ended or all 10 source-file spaces are filled. Check your computer.');
+        }
+      } catch (error) { await env.BUCKET.delete(objectKey);await env.DB.prepare('DELETE FROM photo_files WHERE id = ? AND session = ?').bind(id,session.id).run();await env.DB.prepare('UPDATE photo_sessions SET file_count = file_count - 1 WHERE id = ?').bind(session.id).run();throw error; }
       return json({id,name,size:bytes.length,type},201);
     }
     if (parts[1] === 'photos' && parts.length === 3) {
       const photo = await env.DB.prepare('SELECT * FROM photo_files WHERE id = ? AND session = ?').bind(parts[2],session.id).first<Photo>();
       if (!photo) throw new TransferError(404,'Photo not found.');
-      if (request.method === 'DELETE') { await env.BUCKET.delete(photo.object_key);await env.DB.prepare('UPDATE photo_files SET delivered = 1 WHERE id = ? AND session = ?').bind(photo.id,session.id).run();return json({received:true}); }
+      if (request.method === 'DELETE') { if(!session.intake_id)await env.BUCKET.delete(photo.object_key);await env.DB.prepare('UPDATE photo_files SET delivered = 1 WHERE id = ? AND session = ?').bind(photo.id,session.id).run();return json({received:true}); }
       if (request.method === 'GET') {
         if (photo.delivered) throw new TransferError(410,'Photo has already reached your computer.');
         const object = await env.BUCKET.get(photo.object_key);if (!object) throw new TransferError(404,'Photo is no longer available.');
@@ -96,7 +103,7 @@ export async function handlePhotoTransfer(request: Request, env: Bindings): Prom
     }
     throw new TransferError(404,'Upload action not found.');
   } catch(error) {
-    if (error instanceof TransferError) return json({error:error.message},error.status);
+    if (error instanceof TransferError||error instanceof IntakeError) return json({error:error.message},error.status);
     console.error('Photo transfer operation failed');
     return json({error:'Could not transfer the photo. Please try again.'},500);
   }

@@ -185,7 +185,7 @@ function studentPlan(s,goalId=''){
    <div class="objectives-nested"><div class="section-row objectives-top"><h3>Objectives <span class="objective-count">${g.objectives.length}</span></h3><button class="text-btn" data-action="add-objective" data-id="${s.id}" data-goal="${g.id}">+ Add objective</button></div>
     <ol class="objective-list" aria-label="Objectives for Goal ${i+1}">${g.objectives.map((o,j)=>`<li class="objective-item"><div class="objective-heading"><h3>Objective ${j+1}</h3><button class="text-btn" data-action="edit-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}" aria-label="Edit objective ${j+1}">Edit</button></div><p>${esc(smartText(o,s))}</p>${o.status!=='approved'?`<button class="text-btn objective-approve" data-action="approve-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}">Approve objective</button>`:''}</li>`).join('')}
     </ol>
-   </div><section class="measurement-section"><div class="section-row"><h3>How progress is measured</h3><button class="text-btn" data-action="edit-measurement" data-id="${s.id}" data-goal="${g.id}">Edit</button></div><p class="measurement-method">${esc(g.measurement.method)}</p><p class="measurement-schedule">${g.measurement.frequency} ${+g.measurement.frequency===1?'time':'times'} per week · Review ${formatDate(g.measurement.review)}</p></section>
+   </div>
   </section>`;
  }).join('')}</div>`;
 }

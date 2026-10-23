@@ -27,7 +27,7 @@ test('Student, goal, and objective choices reveal only the matching progress and
 
 test('Goal details keep numbered objectives under a clear, minimal goal summary',()=>{
  const e=environment();e.view('plans/goal/ava');e.change({id:'workspace-goal',value:'goal-ava'});e.click('workspace-goal-details',{goal:'goal-ava'});
- assert(e.html().includes('Goal 1:'));assert(e.html().includes('objectives-nested'));assert(e.html().includes('Objective 1'));assert(e.html().includes('Objective 2'));assert(e.html().includes('How progress is measured'));
+ assert(e.html().includes('Goal 1:'));assert(e.html().includes('objectives-nested'));assert(e.html().includes('Objective 1'));assert(e.html().includes('Objective 2'));assert(!e.html().includes('How progress is measured'));assert(!e.html().includes('5-question story sequencing probe'));
  assert(!e.html().includes('Content</dt>'));assert(!e.html().includes('Standard</dt>'));assert(!e.html().includes('Mark as achieved'));assert(!e.html().includes('Established'));
  e.click('achieve-goal',{id:'ava',goal:'goal-ava'});assert(e.run("goalAchieved(findGoal('ava','goal-ava'))"));assert(!e.run("goalAchieved(findGoal('milo','goal-milo'))"));
  e.click('reopen-goal',{id:'ava',goal:'goal-ava'});assert(!e.run("goalAchieved(findGoal('ava','goal-ava'))"));

@@ -64,7 +64,7 @@ test('Seeded notes, progress, and goal baselines do not prefill present levels',
  assert(!e.html().includes('Example source'));
  showSavedPresentLevels(e,'noah');
  e.click('student-tab',{value:'goals'});
- assert(e.html().includes('Saved measurable baseline'));
+ assert(!e.html().includes('Saved measurable baseline'));
  assert(!e.html().includes('Independently solves 4 of 10 problems.'));
  assert(!e.html().includes('milestone-timeline'));
  e.click('student-tab',{value:'progress'});

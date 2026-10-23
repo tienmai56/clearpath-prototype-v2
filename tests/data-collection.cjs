@@ -33,6 +33,7 @@ const reviewView=vm.runInContext('dataCollectionView()',context);
 assert.match(reviewView,/4 correct/);
 assert.match(reviewView,/1 not correct/);
 assert.match(reviewView,/min-width:0/);
+assert.equal((reviewView.match(/data-collection-action="save-review"/g)||[]).length,1);
 assert.doesNotMatch(reviewView,/Confirm the detected result/);
 assert.doesNotMatch(reviewView,/Scoring rule:/);
 console.log('Collect data upload entry, annotated sample review, and compact review header verified.');

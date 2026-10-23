@@ -82,7 +82,7 @@ await check('Selecting both outputs saves editable present levels and draft obje
  e.click('intake-edit',{id:'amir'});assert(e.html().includes('Objective 1:</label>'));assert(e.html().includes('Choose the operation for a one-step problem</textarea>'));
  e.run('handleIntakeInput({dataset:{intakeField:"goal.objectives.0.target",student:"amir"},value:"85"})');await e.run('saveIntakeDrafts("amir")');assert.equal(e.run('goalPlansFor("amir").length'),2);assert.equal((await snapshot('amir')).drafts.goal.objectives[0].target,85);
  e.click('intake-edit',{id:'amir'});e.click('intake-cancel',{id:'amir'});assert.equal(e.run('intakeSession("amir").stage'),'saved');
- const reload=app();reload.view('student/amir/iep');await settle();assert(reload.html().includes('Choose and solve word problems'));assert(reload.html().includes('Draft'));assert(reload.html().includes('Approve objectives'));
+ const reload=app();reload.view('student/amir/iep');await settle();assert(reload.html().includes('Goal 2: Choose and solve word problems'));assert(reload.html().includes('Approve objective'));assert(!reload.html().includes('Established'));assert(!reload.html().includes('Mark as achieved'));
 });
 
 await check('Goals-only output leaves present levels empty, and failed saves retain the edited draft',async()=>{

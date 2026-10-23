@@ -167,21 +167,25 @@ function noteEntry(n){return `<article class="note-entry" id="${n.id}" tabindex=
 
 function studentOverview(s){return journeyProgress(s)}
 
-function planChecks(p){return [['Goal',!!p.title],['Established objectives',p.objectives?.length>0&&p.objectives.every(o=>o.status==='approved')],['Measurement plan',!!(p.measurement?.method&&p.measurement.frequency&&p.measurement.review)]]}
-function planComplete(p){return planChecks(p).every(([,ok])=>ok)}
+function goalBaselineFromPresentLevels(s,g){
+ const present=intakeSession(s.id).savedDrafts.presentLevels||{};
+ const saved=[present.baseline,g.baseline].find(value=>String(value??'').trim()&&!/^\s*\[/.test(String(value)));
+ if(saved)return String(saved).trim();
+ const name=s.name.split(' ')[0],examples={reading:`${name} independently sequences 2 of 5 story events with usual accommodations.`,math:`${name} independently chooses and solves 2 of 5 one-step problems with usual accommodations.`,writing:`${name} independently writes a complete sentence in 2 of 5 opportunities with usual accommodations.`};
+ return examples[g.domain]||examples.reading;
+}
 
 function studentPlan(s,goalId=''){
  const allGoals=goalPlansFor(s.id),gs=goalId?allGoals.filter(g=>g.id===goalId):allGoals;
- if(!gs.length)return '<div class="empty-plan"><h2>No IEP goals yet</h2><p>Set a goal to generate its SMART objectives.</p></div>';
+ if(!gs.length)return '<div class="empty-plan"><h2>No IEP goals yet</h2></div>';
  return `<div class="content-column iep-plan">${gs.map((g,i)=>{
-  const drafts=g.objectives.filter(o=>o.status!=='approved').length;
   i=allGoals.indexOf(g);return `<section class="goal-block" aria-labelledby="plan-${g.id}">
-   <div class="goal-heading"><div><div class="goal-label">Goal ${i+1} · ${domainNames[g.domain]}</div><h2 id="plan-${g.id}">${esc(g.title)}</h2><div class="goal-meta"><span>Goal deadline: ${formatDate(g.deadline)}, ${g.deadline.slice(0,4)}</span>${goalAchieved(g)?goalAchievementLabel(g):drafts?`<span>${drafts} ${drafts===1?'draft':'drafts'} to review</span>`:g.objectives.length?`<span class="established-plan">${icon('check')}Established</span>`:''}</div></div><div class="goal-actions"><button class="text-btn" data-action="edit-goal" data-id="${s.id}" data-goal="${g.id}">Edit goal</button>${goalAchievementAction(s,g)}</div></div>
-   <dl class="goal-details"><div><dt>Content</dt><dd>${esc(g.content||g.title)}</dd></div><div><dt>Standard</dt><dd>${g.standard?esc(g.standard):'<span class="muted">Not added</span>'}</dd></div><div><dt>Baseline</dt><dd>${g.baseline?esc(g.baseline):'<span class="muted">Not added</span>'}</dd></div></dl>
+   <div class="goal-heading"><div><h2 id="plan-${g.id}">Goal ${i+1}: ${esc(g.title)}</h2><p class="goal-deadline">By ${formatDate(g.deadline)}, ${g.deadline.slice(0,4)}</p></div><button class="text-btn" data-action="edit-goal" data-id="${s.id}" data-goal="${g.id}">Edit goal</button></div>
+   <section class="goal-baseline" aria-labelledby="baseline-${g.id}"><h3 id="baseline-${g.id}">Baseline</h3><p>${esc(goalBaselineFromPresentLevels(s,g))}</p></section>
    <div class="objectives-nested"><div class="section-row objectives-top"><h3>Objectives <span class="objective-count">${g.objectives.length}</span></h3><button class="text-btn" data-action="add-objective" data-id="${s.id}" data-goal="${g.id}">+ Add objective</button></div>
-    <ol class="objective-list" aria-label="Objectives for Goal ${i+1}">${g.objectives.map((o,j)=>`<li class="objective-item ${o.status==='approved'?'established':'is-draft'}"><div class="objective-heading"><h3>Objective ${j+1}${o.status!=='approved'?'<span class="draft-label">Draft</span>':''}</h3><button class="text-btn" data-action="edit-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}" aria-label="Edit objective ${j+1}">Edit</button></div><p>${esc(smartText(o,s))}</p>${o.status!=='approved'?`<button class="text-btn objective-approve" data-action="approve-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}">Approve objective</button>`:''}</li>`).join('')}
+    <ol class="objective-list" aria-label="Objectives for Goal ${i+1}">${g.objectives.map((o,j)=>`<li class="objective-item"><div class="objective-heading"><h3>Objective ${j+1}</h3><button class="text-btn" data-action="edit-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}" aria-label="Edit objective ${j+1}">Edit</button></div><p>${esc(smartText(o,s))}</p>${o.status!=='approved'?`<button class="text-btn objective-approve" data-action="approve-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}">Approve objective</button>`:''}</li>`).join('')}
     </ol>
-   </div><div class="measurement-section"><div class="section-row"><h3>Measurement plan</h3><button class="text-btn" data-action="edit-measurement" data-id="${s.id}" data-goal="${g.id}">Edit</button></div><dl class="measurement-list"><div><dt>Collect</dt><dd>${esc(g.measurement.method)}</dd></div><div><dt>Frequency</dt><dd>${g.measurement.frequency} ${+g.measurement.frequency===1?'time':'times'} per week</dd></div><div><dt>Review</dt><dd>${formatDate(g.measurement.review)}</dd></div></dl></div>
+   </div><section class="measurement-section"><div class="section-row"><h3>How progress is measured</h3><button class="text-btn" data-action="edit-measurement" data-id="${s.id}" data-goal="${g.id}">Edit</button></div><p class="measurement-method">${esc(g.measurement.method)}</p><p class="measurement-schedule">${g.measurement.frequency} ${+g.measurement.frequency===1?'time':'times'} per week · Review ${formatDate(g.measurement.review)}</p></section>
   </section>`;
  }).join('')}</div>`;
 }
@@ -232,7 +236,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-action]')
  if(a==='add-objective'||a==='edit-objective')return objectiveModal(id,gid,oid||'');
  if(a==='edit-measurement')return measurementModal(id,gid);
  if(a==='approve-objective'){const o=findGoal(id,gid)?.objectives.find(x=>x.id===oid);if(o){o.status='approved';o.approvedAt=TODAY;persist();render();toast('Objective added to the plan.')}return}
- if(a==='approve-all'){for(const g of goalPlansFor(id))for(const o of g.objectives){o.status='approved';o.approvedAt=TODAY}persist();render();toast('Objectives established.');return}
+ if(a==='approve-all'){for(const g of goalPlansFor(id))for(const o of g.objectives){o.status='approved';o.approvedAt=TODAY}persist();render();toast('Objectives approved.');return}
  if(a==='record-progress')return openProgressModal(id||'ava',el.dataset.comparison||'');
  if(handleProgressAction(a,el))return;
  if(handleGuidanceAction(a,el))return;

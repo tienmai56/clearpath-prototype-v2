@@ -25,10 +25,11 @@ test('Student, goal, and objective choices reveal only the matching progress and
  e.change({id:'goals-student',value:'ben'});assert(!e.html().includes('value="goal-ava"'));assert(!e.html().includes('id="workspace-objective"'));
 });
 
-test('Goal details keep numbered objectives under the selected goal and achievement stays student-specific',()=>{
+test('Goal details keep numbered objectives under a clear, minimal goal summary',()=>{
  const e=environment();e.view('plans/goal/ava');e.change({id:'workspace-goal',value:'goal-ava'});e.click('workspace-goal-details',{goal:'goal-ava'});
- assert(e.html().includes('objectives-nested'));assert(e.html().includes('Objective 1'));assert(e.html().includes('Objective 2'));assert(e.html().includes('Measurement plan'));
- e.click('achieve-goal',{id:'ava',goal:'goal-ava'});assert(e.html().includes('Achieved goal'));assert(!e.run("goalAchieved(findGoal('milo','goal-milo'))"));
+ assert(e.html().includes('Goal 1:'));assert(e.html().includes('objectives-nested'));assert(e.html().includes('Objective 1'));assert(e.html().includes('Objective 2'));assert(e.html().includes('How progress is measured'));
+ assert(!e.html().includes('Content</dt>'));assert(!e.html().includes('Standard</dt>'));assert(!e.html().includes('Mark as achieved'));assert(!e.html().includes('Established'));
+ e.click('achieve-goal',{id:'ava',goal:'goal-ava'});assert(e.run("goalAchieved(findGoal('ava','goal-ava'))"));assert(!e.run("goalAchieved(findGoal('milo','goal-milo'))"));
  e.click('reopen-goal',{id:'ava',goal:'goal-ava'});assert(!e.run("goalAchieved(findGoal('ava','goal-ava'))"));
 });
 
@@ -38,7 +39,7 @@ test('Adding and editing a goal return to the goals workspace with draft objecti
  e.submit('goal-form',data);assert.equal(e.run('location.hash'),'#plans/goal/ava');
  const g=e.run('state.goalPlans.ava.at(-1)'),o=g.objectives[0];
  assert(e.html().includes('Approve objective'));assert(!e.html().includes('data-action="record-progress"'));
- e.click('approve-objective',{id:'ava',goal:g.id,objective:o.id});assert(!e.html().includes('Approve objective'));assert(e.html().includes('Established'));assert(e.html().includes('data-action="record-progress"'));
+ e.click('approve-objective',{id:'ava',goal:g.id,objective:o.id});assert(!e.html().includes('Approve objective'));assert(!e.html().includes('Established'));assert(e.html().includes('data-action="record-progress"'));
  e.click('edit-goal',{id:'ava',goal:g.id});e.submit('goal-form',{...data,goalId:g.id,title:'Main idea'});
  assert.equal(e.run('location.hash'),'#plans/goal/ava');assert.equal(e.run('activeGoal("ava").id'),g.id);assert.equal(e.run('activeObjective("ava").id'),o.id);
 });

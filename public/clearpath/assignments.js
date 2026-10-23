@@ -40,7 +40,7 @@ function submitAssignmentSetup(values,form){
  if(!draft.studentIds.length)return formError(error,'Select at least one student.');
  normalizeDraftSelection(draft);
  if(!draftGoalsComplete(draft))return formError(error,'Select a goal for each student.');
- if(!draftObjectivesComplete(draft))return formError(error,'Select an established objective from each chosen goal.');
+ if(!draftObjectivesComplete(draft))return formError(error,'Choose an objective that is ready to use for each student.');
  const kind=values.kind||draft.kind;
  if(!['assignment','assessment'].includes(kind))return formError(error,'Choose an assignment or assessment.');
  syncDraftSelection(draft);

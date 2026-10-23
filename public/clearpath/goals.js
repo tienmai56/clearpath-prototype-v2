@@ -64,10 +64,8 @@ function setGoalAchievement(id,gid,achieved){
  const g=findGoal(id,gid);if(!g)return;
  const before=structuredClone(g);g.status=achieved?'achieved':'active';g.achievedAt=achieved?new Date().toISOString():null;g.updatedAt=new Date().toISOString();
  if(!persist()){state.goalPlans[id]=state.goalPlans[id].map(x=>x.id===gid?before:x);return;}
- activeGoalIds[id]=gid;render();toast(achieved?'Goal marked achieved.':'Goal reopened.');
+ activeGoalIds[id]=gid;render();toast(achieved?'Goal completed.':'Goal reopened.');
 }
-function goalAchievementAction(s,g){return `<button class="text-btn" data-action="${goalAchieved(g)?'reopen-goal':'achieve-goal'}" data-id="${s.id}" data-goal="${g.id}">${goalAchieved(g)?'Reopen goal':'Mark as achieved'}</button>`}
-function goalAchievementLabel(g){return `<span class="achieved-goal">${icon('check')}Achieved goal${g.achievedAt?`<time datetime="${esc(g.achievedAt)}"> · ${new Date(g.achievedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</time>`:''}</span>`}
 function handleGoalAction(action,el){
  if(action==='achieve-goal'||action==='reopen-goal'){setGoalAchievement(el.dataset.id,el.dataset.goal,action==='achieve-goal');return true;}
  if(!['add-goal-objective','remove-goal-objective'].includes(action))return false;

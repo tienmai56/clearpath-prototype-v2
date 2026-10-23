@@ -131,7 +131,7 @@ function clearProgressCapture(){stopMobileTransfer(progressCapture);for(const f 
 async function saveProgressRecord(d,form){
  const p=progressCapture;if(!p||p.saving)return;
  const g=findGoal(d.student,d.goal),o=g?.objectives.find(o=>o.id===d.objective);
- if(!o||o.status!=='approved'||d.student!==p.student||d.objective!==p.objective||d.comparison!==p.comparison)return formError('log-error','Select an established objective before recording progress.');
+ if(!o||o.status!=='approved'||d.student!==p.student||d.objective!==p.objective||d.comparison!==p.comparison)return formError('log-error','Choose an objective before recording progress.');
  const correct=+d.correct,attempts=+d.attempts;
  if(d.correct===''||!Number.isInteger(correct)||!Number.isInteger(attempts)||attempts<1||attempts>100||correct<0||correct>attempts)return formError('log-error','Correct answers must be between zero and the total.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(d.date)||Number.isNaN(Date.parse(d.date))||d.date>TODAY)return formError('log-error','Choose a date on or before today.');

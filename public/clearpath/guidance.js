@@ -36,7 +36,7 @@ function makeGuidanceProposal(s,recommendations){
  if(saved)model.title=saved.title;
  const preparation=recommendations.find(x=>x.id==='visuals'||x.id==='model');
  const delivery=recommendations.find(x=>x.id==='directions'||x.id==='oral');
- const steps=[preparation?.step||'Introduce the task and check that the student understands the first step.',delivery?.step||'Let the student attempt the task with their usual accommodations.','Use the established objective to record the student’s response.'];
+ const steps=[preparation?.step||'Introduce the task and check that the student understands the first step.',delivery?.step||'Let the student attempt the task with their usual accommodations.','Use this objective to record the student’s response.'];
  return {model,goalId:goal?.id||null,objective:objective?.skill||'',steps,baseId:saved?.id||null,baseTitle:saved?.title||null};
 }
 function refreshGuidance(s,{initialize=false}={}){

@@ -15,12 +15,9 @@ function hasStudentPresentLevels(s) {
 
 function studentIEPView(s) {
  if(!hasStudentPresentLevels(s))return '';
- const pending=goalPlansFor(s.id).flatMap(g=>g.objectives).filter(o=>o.status!=='approved');
- return `<div class="student-supporting-sections">
-  <details id="student-plan" class="student-disclosure" ${route().objective==='plan'?'open':''}>
-   <summary><span>IEP goal details<small>Objectives, baselines, and measurement plans</small></span>${icon('down')}</summary>
-   <div class="student-disclosure-body"><div class="actions student-plan-actions">${btn(icon('plus')+'Add goal','add-goal','small',`data-id="${s.id}"`)}${pending.length?btn('Approve objectives','approve-all','small',`data-id="${s.id}"`):''}</div>${studentPlan(s)}</div>
-  </details>
+ return `<div class="student-goals-view">
+  <div class="student-goals-toolbar">${btn(icon('plus')+'Add goal','add-goal','small',`data-id="${s.id}"`)}</div>
+  <div id="student-plan">${studentPlan(s)}</div>
   <details id="student-materials" class="student-disclosure" ${route().objective==='materials'?'open':''}>
    <summary><span>Assignments &amp; assessments<small>Materials saved for ${esc(s.name.split(' ')[0])}</small></span>${icon('down')}</summary>
    <div class="student-disclosure-body"><div class="student-materials-action">${btn('Create assignment','student-assignment','small',`data-id="${s.id}"`)}</div>${studentMaterials(s)}</div>

@@ -12,7 +12,7 @@
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "test": "node --test tests/regression.cjs tests/existing.cjs tests/goals.cjs tests/creation-and-materials.cjs tests/milestone-journey.cjs tests/present-levels.cjs tests/goal-workspace.cjs tests/data-collection.cjs tests/photo-transfer.test.mjs tests/student-intake.test.mjs",
+    "test": "node --test tests/regression.cjs tests/existing.cjs tests/goals.cjs tests/creation-and-materials.cjs tests/milestone-journey.cjs tests/present-levels.cjs tests/goal-workspace.cjs tests/data-collection.cjs tests/classroom-avatars.cjs tests/photo-transfer.test.mjs tests/student-intake.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

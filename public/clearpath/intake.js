@@ -1,9 +1,8 @@
 'use strict';
 
-const INTAKE_EMPTY_STUDENTS=['amir','ava','ben'];
 const intakeSessions=new Map();
 const intakeTypes={pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',heic:'image/heic',heif:'image/heif',mp4:'video/mp4',mov:'video/quicktime',webm:'video/webm'};
-function isIntakeStudent(s){return s.isNew||INTAKE_EMPTY_STUDENTS.includes(s.id);}
+function isIntakeStudent(){return true;}
 function intakeSession(id){if(!intakeSessions.has(id))intakeSessions.set(id,{student:id,loaded:false,loading:false,files:[],savedDrafts:{},stage:'upload',selected:{presentLevels:true,goal:true},draft:null,dirty:false,error:'',uploading:'',saving:false,phoneOpen:false,transfer:null,analysisStep:0});return intakeSessions.get(id);}
 function intakeVisible(id){const r=route();return r.page==='student'&&r.id===id&&!r.student&&!r.objective;}
 function refreshIntake(id){if(route().page==='student'&&route().id===id)render();}

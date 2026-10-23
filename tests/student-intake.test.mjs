@@ -54,8 +54,8 @@ await check('Phone document and video uploads appear on desktop and survive conf
  const reload=app();reload.view('student/amir');await settle();assert(reload.html().includes('classroom.mov'));assert(reload.html().includes('No present levels assessment yet'));
 });
 
-await check('First-row profiles start empty and analysis leads to independent output choices',async()=>{
- const e=app();for(const id of ['amir','ava','ben']){e.view('student/'+id);await settle();assert(e.html().includes('No present levels assessment yet'));assert(!e.html().includes('Example present levels'));assert.equal((e.html().match(/role="tab"/g)||[]).length,2);}
+await check('Every class profile starts empty and analysis leads to independent output choices',async()=>{
+ const e=app(),ids=JSON.parse(e.run('JSON.stringify(students.map(s=>s.id))'));assert.equal(ids.length,12);for(const id of ids){e.view('student/'+id);await settle();assert(e.html().includes('No present levels assessment yet'));assert(!e.html().includes('Example present levels'));assert.equal((e.html().match(/role="tab"/g)||[]).length,2);}
  e.view('student/amir');await settle();e.click('intake-analyze',{id:'amir'});assert(e.html().includes('Analyzing student information'));assert(e.html().includes('Analysis is simulated'));
  for(let i=0;i<3;i++)e.run('advanceIntakeAnalysis("amir",intakeSession("amir").analysisToken)');
  assert(e.html().includes('What would you like to draft?'));

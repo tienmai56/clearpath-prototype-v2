@@ -4,6 +4,7 @@ Interactive prototype for IEP planning, student progress, assignments, lesson co
 
 ## Current experience
 
+- Every student starts with an empty **Present levels** workspace. Teachers add source materials, choose whether to draft present levels, IEP goals and objectives, or both, then review and save the editable result. Existing IEP goals, progress, and notes remain available in their own workspaces.
 - **Create & Track Goals** replaces the IEP plans roster with a student-first workspace: **IEP Goal**, **Service Time**, and **Notes**. Select a student, goal, then objective to record progress; expand goal details to edit the goal, nested objectives, or measurement plan.
 - **Service Time** logs the service, provider, date, minutes, and optional linked goal. Optional session notes appear with their provider in Notes and refresh instructional guidance. Logs persist in this browser; no service-minute compliance calculation is implied.
 - **Notes** now lives in Create & Track Goals. Class alerts, citations, and lesson-update reviews open the matching student there.

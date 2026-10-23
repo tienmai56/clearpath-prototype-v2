@@ -20,6 +20,7 @@ test('Every student card opens an empty Present levels workspace',()=>{
   assert(e.html().includes('Progress'));
   assert(e.html().includes('No present levels assessment yet'));
   assert(e.html().includes('Upload from laptop'));
+  assert(!e.html().includes('Add at least one file to continue'));
   assert(!e.html().includes('Example present levels'));
   assert(!e.html().includes('present-summary-title'));
  }

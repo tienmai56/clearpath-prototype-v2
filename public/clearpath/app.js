@@ -172,9 +172,9 @@ function studentPlan(s,goalId=''){
  if(!gs.length)return '<div class="empty-plan"><h2>No IEP goals yet</h2></div>';
  return `<div class="content-column iep-plan">${gs.map((g,i)=>{
   i=allGoals.indexOf(g);return `<section class="goal-block" aria-labelledby="plan-${g.id}">
-   <div class="goal-heading"><div><h2 id="plan-${g.id}">Goal ${i+1}: ${esc(g.title)}</h2><p class="goal-deadline">By ${formatDate(g.deadline)}, ${g.deadline.slice(0,4)}</p></div><button class="text-btn" data-action="edit-goal" data-id="${s.id}" data-goal="${g.id}">Edit goal</button></div>
-   <div class="objectives-nested"><div class="section-row objectives-top"><h3>Objectives <span class="objective-count">${g.objectives.length}</span></h3><button class="text-btn" data-action="add-objective" data-id="${s.id}" data-goal="${g.id}">+ Add objective</button></div>
-    <ol class="objective-list" aria-label="Objectives for Goal ${i+1}">${g.objectives.map((o,j)=>`<li class="objective-item"><div class="objective-heading"><h3>Objective ${j+1}</h3><button class="text-btn" data-action="edit-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}" aria-label="Edit objective ${j+1}">Edit</button></div><p>${esc(smartText(o,s))}</p>${o.status!=='approved'?`<button class="text-btn objective-approve" data-action="approve-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}">Approve objective</button>`:''}</li>`).join('')}
+   <div class="goal-heading"><div><h2 id="plan-${g.id}">Goal ${i+1}: ${esc(g.title)}</h2><p class="goal-deadline">By ${formatDate(g.deadline)}, ${g.deadline.slice(0,4)}</p></div><button class="text-btn" data-action="edit-goal" data-id="${s.id}" data-goal="${g.id}">Edit</button></div>
+   <div class="objectives-nested"><div class="section-row objectives-top"><h3>Objectives <span class="objective-count">${g.objectives.length}</span></h3></div>
+    <ol class="objective-list" aria-label="Objectives for Goal ${i+1}">${g.objectives.map((o,j)=>`<li class="objective-item"><div class="objective-heading"><h3>Objective ${j+1}</h3></div><p>${esc(smartText(o,s))}</p>${o.status!=='approved'?`<button class="text-btn objective-approve" data-action="approve-objective" data-id="${s.id}" data-goal="${g.id}" data-objective="${o.id}">Approve objective</button>`:''}</li>`).join('')}
     </ol>
    </div>
   </section>`;

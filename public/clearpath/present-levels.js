@@ -18,10 +18,6 @@ function studentIEPView(s) {
  return `<div class="student-goals-view">
   <div class="student-goals-toolbar">${btn(icon('plus')+'Add goal','add-goal','small',`data-id="${s.id}"`)}</div>
   <div id="student-plan">${studentPlan(s)}</div>
-  <details id="student-materials" class="student-disclosure" ${route().objective==='materials'?'open':''}>
-   <summary><span>Assignments &amp; assessments<small>Materials saved for ${esc(s.name.split(' ')[0])}</small></span>${icon('down')}</summary>
-   <div class="student-disclosure-body"><div class="student-materials-action">${btn('Create assignment','student-assignment','small',`data-id="${s.id}"`)}</div>${studentMaterials(s)}</div>
-  </details>
  </div>`;
 }
 

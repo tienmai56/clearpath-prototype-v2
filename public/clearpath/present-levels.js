@@ -1,15 +1,22 @@
 'use strict';
 
 function openStudentSection(id, section='present', detail='') {
- const iep=['iep','overview','plan','materials'].includes(section);
+ const iep=['iep','goals','plan','materials'].includes(section);
+ const progress=['progress','overview'].includes(section);
  const expanded=detail||(['plan','materials'].includes(section)?section:'');
- navigate('student/'+id+(iep?'/iep'+(expanded?'/'+expanded:''):''));
+ navigate('student/'+id+(iep?'/iep'+(expanded?'/'+expanded:''):progress?'/progress':''));
  if(expanded)setTimeout(()=>document.getElementById('student-'+expanded)?.scrollIntoView?.({behavior:'smooth',block:'start'}),30);
 }
 
+function hasStudentPresentLevels(s) {
+ const present=intakeSession(s.id).savedDrafts.presentLevels;
+ return !!present&&Object.values(present).some(value=>String(value??'').trim());
+}
+
 function studentIEPView(s) {
+ if(!hasStudentPresentLevels(s))return '';
  const pending=goalPlansFor(s.id).flatMap(g=>g.objectives).filter(o=>o.status!=='approved');
- return `${studentOverview(s)}<div class="student-supporting-sections">
+ return `<div class="student-supporting-sections">
   <details id="student-plan" class="student-disclosure" ${route().objective==='plan'?'open':''}>
    <summary><span>IEP goal details<small>Objectives, baselines, and measurement plans</small></span>${icon('down')}</summary>
    <div class="student-disclosure-body"><div class="actions student-plan-actions">${btn(icon('plus')+'Add goal','add-goal','small',`data-id="${s.id}"`)}${pending.length?btn('Approve objectives','approve-all','small',`data-id="${s.id}"`):''}</div>${studentPlan(s)}</div>
@@ -19,6 +26,10 @@ function studentIEPView(s) {
    <div class="student-disclosure-body"><div class="student-materials-action">${btn('Create assignment','student-assignment','small',`data-id="${s.id}"`)}</div>${studentMaterials(s)}</div>
   </details>
  </div>`;
+}
+
+function studentProgressView(s) {
+ return hasStudentPresentLevels(s)?studentOverview(s):'';
 }
 
 function presentLevelExample(s) {

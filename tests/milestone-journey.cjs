@@ -2,10 +2,11 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {environment}=require('./harness.cjs');
 const target={id:'amir',goal:'goal-amir',objective:'goal-amir-o3'};
+function withPresentLevels(e){e.run("(()=>{const p=intakeSession('amir');p.loaded=true;p.savedDrafts.presentLevels={summary:'Saved present levels'};})()");return e;}
 
 test('The vertical path keeps goals and milestones chronological and opens one scoped panel',()=>{
- const e=environment();e.run(`state.goalPlans.amir.push({id:'earlier',title:'Earlier target',content:'Count sets',deadline:'2026-11-01',status:'active',measurement:{method:'Check',frequency:2,review:'2026-10-16'},objectives:[{id:'earlier-second',skill:'Count five',deadline:'2026-11-01',status:'approved',target:80,checks:3,condition:'independently'},{id:'earlier-first',skill:'Count three',deadline:'2026-10-20',status:'approved',target:80,checks:3,condition:'independently'}]})`);
- e.view('student/amir/iep');assert(e.html().indexOf('Earlier target')<e.html().indexOf('One-step word problems'));
+ const e=withPresentLevels(environment());e.run(`state.goalPlans.amir.push({id:'earlier',title:'Earlier target',content:'Count sets',deadline:'2026-11-01',status:'active',measurement:{method:'Check',frequency:2,review:'2026-10-16'},objectives:[{id:'earlier-second',skill:'Count five',deadline:'2026-11-01',status:'approved',target:80,checks:3,condition:'independently'},{id:'earlier-first',skill:'Count three',deadline:'2026-10-20',status:'approved',target:80,checks:3,condition:'independently'}]})`);
+ e.view('student/amir/progress');assert(e.html().indexOf('Earlier target')<e.html().indexOf('One-step word problems'));
  assert(e.html().indexOf('Count three')<e.html().indexOf('Count five'));
  e.click('select-milestone',target);assert.equal((e.html().match(/id="milestone-detail"/g)||[]).length,1);assert(e.html().includes('What’s helping'));assert(e.html().includes('Teaching record'));
  assert(!e.html().includes('Assignment history'));assert(!e.html().includes('id="progress-objective"'));
@@ -17,12 +18,12 @@ test('The vertical path keeps goals and milestones chronological and opens one s
 });
 
 test('Guidance remains available from the selected milestone',()=>{
- const e=environment();e.view('student/amir/iep');e.click('milestone-guidance',target);assert(e.modal().includes('Model the first problem-solving step'));
+ const e=withPresentLevels(environment());e.view('student/amir/progress');e.click('milestone-guidance',target);assert(e.modal().includes('Model the first problem-solving step'));
  e.click('guidance-to-milestone',target);assert.equal(e.run('location.hash'),'#student/amir/goal-amir/goal-amir-o3');assert.equal(e.run('activeObjective("amir").id'),'goal-amir-o3');
 });
 
 test('A recorded strategy updates only its milestone and student, with dates in evidence order',async()=>{
- const e=environment();e.view('student/amir/iep');e.click('record-milestone',{...target,objective:'goal-amir-o1'});
+ const e=withPresentLevels(environment());e.view('student/amir/progress');e.click('record-milestone',{...target,objective:'goal-amir-o1'});
  e.change({name:'evidence-method',value:'manual'});e.click('progress-next');assert(e.modal().includes('What did you try?'));
  await e.submit('log-form',{student:'amir',goal:'goal-amir',objective:'goal-amir-o1',comparison:'',date:'2026-10-09',correct:'4',attempts:'5',support:'independent',strategy:'Worked example',note:'Chose the operation without a cue.',phase:'followup'});
  assert.equal(e.run('state.logs[0].strategy'),'Worked example');
@@ -35,7 +36,7 @@ test('A recorded strategy updates only its milestone and student, with dates in 
 });
 
 test('Trying guidance counts only linked checks and surfaces the review within the milestone',async()=>{
- const e=environment();e.click('milestone-guidance',target);e.click('plan-milestone-guidance',target);
+ const e=withPresentLevels(environment());e.click('milestone-guidance',target);e.click('plan-milestone-guidance',target);
  const plan=e.run('state.interventions[0]');assert.equal(plan.objective,target.objective);assert(e.modal().includes('Record 3 more checks'));
  for(let i=0;i<3;i++){
   e.click('record-milestone',target);assert.equal(e.run('progressCapture.values.strategy'),plan.title);
@@ -49,7 +50,7 @@ test('Trying guidance counts only linked checks and surfaces the review within t
 });
 
 test('Milestones require enough successful checks before completion; completion persists',()=>{
- const e=environment();e.click('complete-milestone',target);assert(!e.run('findGoal("amir","goal-amir").objectives[2].completedAt'));
+ const e=withPresentLevels(environment());e.click('complete-milestone',target);assert(!e.run('findGoal("amir","goal-amir").objectives[2].completedAt'));
  e.run(`for(let i=0;i<3;i++)state.logs.unshift({id:'mastery-'+i,student:'amir',goal:'goal-amir',objective:'goal-amir-o1',date:TODAY,score:100})`);
  e.click('complete-milestone',{...target,objective:'goal-amir-o1'});assert(e.run('findGoal("amir","goal-amir").objectives[0].completedAt'));
  assert.equal(e.run('focusMilestone(getStudent("amir"),findGoal("amir","goal-amir")).id'),'goal-amir-o2');
@@ -58,7 +59,7 @@ test('Milestones require enough successful checks before completion; completion 
 });
 
 test('Drafts and storage failures do not create phantom evidence or changes',async()=>{
- const e=environment();e.run('findGoal("amir","goal-amir").objectives[0].status="draft"');e.click('record-milestone',{...target,objective:'goal-amir-o1'});assert.equal(e.run('progressCapture'),null);
+ const e=withPresentLevels(environment());e.run('findGoal("amir","goal-amir").objectives[0].status="draft"');e.click('record-milestone',{...target,objective:'goal-amir-o1'});assert.equal(e.run('progressCapture'),null);
  e.failStorage(true);e.click('plan-milestone-guidance',target);assert.equal(e.run('state.interventions.length'),0);
  e.click('focus-milestone',{...target,objective:'goal-amir-o2'});assert.equal(e.run('findGoal("amir","goal-amir").currentObjectiveId'),undefined);
  e.failStorage(false);e.click('record-milestone',target);e.change({name:'evidence-method',value:'manual'});e.click('progress-next');e.failStorage(true);
@@ -66,7 +67,7 @@ test('Drafts and storage failures do not create phantom evidence or changes',asy
 });
 
 test('New student notes affect milestone guidance, while milestone-specific notes stay scoped',()=>{
- const e=environment();e.submit('context-form',{student:'amir',author:'Teacher',role:'General education teacher',dateISO:'2026-10-09',text:'Too many visual cues were distracting. One picture was easier.'});
+ const e=withPresentLevels(environment());e.submit('context-form',{student:'amir',author:'Teacher',role:'General education teacher',dateISO:'2026-10-09',text:'Too many visual cues were distracting. One picture was easier.'});
  e.click('milestone-guidance',target);assert(e.modal().includes('Reduce visual clutter'));
  e.click('milestone-note',{...target,objective:'goal-amir-o1'});assert(e.modal().includes('name="objective" value="goal-amir-o1"'));
  e.submit('context-form',{student:'amir',goal:'goal-amir',objective:'goal-amir-o1',author:'Teacher',role:'General education teacher',dateISO:'2026-10-09',text:'An operation chart helped choose addition.'});
@@ -75,10 +76,10 @@ test('New student notes affect milestone guidance, while milestone-specific note
 });
 
 test('Lesson variants are gone from every entry point; previous evidence remains readable',()=>{
- const e=environment();e.view('studio');assert(!/lesson variants|Teaching plans|two versions/i.test(e.html()));assert(e.html().includes('Create assignments &amp; assessments'));
+ const e=withPresentLevels(environment());e.view('studio');assert(!/lesson variants|Teaching plans|two versions/i.test(e.html()));assert(e.html().includes('Create assignments &amp; assessments'));
  e.view('studio/variants');assert.equal(e.run('location.hash'),'#studio');e.view('comparison/sample');assert.equal(e.run('location.hash'),'#studio');
  e.click('new-variants');assert.equal(e.run('location.hash'),'#studio');e.submit('comparison-form',{start:'2026-10-09',review:'2026-10-23',frequency:'3'});assert.equal(e.run('state.comparisons.length'),0);
  e.run(`state.comparisons.push({id:'legacy',title:'Past instruction',groups:{a:[],b:['amir']},objectiveIds:{amir:'goal-amir-o3'},lesson:{b:'Visual boxes'}});state.logs.unshift({id:'legacy-log',student:'amir',goal:'goal-amir',objective:'goal-amir-o3',comparison:'legacy',date:TODAY,score:80,note:'Worked independently.'});state.drafts.push({id:'old-draft',title:'Old variants',studentIds:['amir']});persist()`);
- e.view('student/amir/iep');assert(e.html().includes('Visual boxes'));assert(!e.html().includes('Old variants'));e.click('student-tab',{value:'materials'});assert(!/Teaching plans|Lesson variant drafts|open-draft/.test(e.html()));
+ e.view('student/amir/progress');assert(e.html().includes('Visual boxes'));assert(!e.html().includes('Old variants'));e.click('student-tab',{value:'goals'});assert(!/Teaching plans|Lesson variant drafts|open-draft/.test(e.html()));
  const reload=environment(e.storage);assert.equal(reload.run('state.comparisons.length'),1);assert.equal(reload.run('state.logs.length'),1);
 });

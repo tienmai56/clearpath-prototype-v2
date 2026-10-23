@@ -14,9 +14,10 @@ test('Every student card opens an empty Present levels workspace',()=>{
  assert.equal((e.html().match(/data-action="open-student-profile"/g)||[]).length,ids.length);
  for(const id of ids){
   e.view('student/'+id);
-  assert.equal((e.html().match(/role="tab"/g)||[]).length,2);
+  assert.equal((e.html().match(/role="tab"/g)||[]).length,3);
   assert(e.html().includes('Present levels'));
-  assert(e.html().includes('IEP Goals &amp; Progress'));
+  assert(e.html().includes('IEP goals'));
+  assert(e.html().includes('Progress'));
   assert(e.html().includes('No present levels assessment yet'));
   assert(e.html().includes('Upload from laptop'));
   assert(!e.html().includes('Example present levels'));
@@ -24,23 +25,33 @@ test('Every student card opens an empty Present levels workspace',()=>{
  }
 });
 
-test('Empty present levels preserve IEP navigation and milestone selection',()=>{
+test('Empty present levels leave IEP goals and Progress blank',()=>{
  const e=environment();
  e.click('open-student-profile',{id:'noah'});
  assert.equal(e.run('location.hash'),'#student/noah');
  assert(e.html().includes('No present levels assessment yet'));
  assert(!e.html().includes('milestone-timeline'));
- e.click('student-tab',{value:'iep'});
+ e.click('student-tab',{value:'goals'});
  assert.equal(e.run('location.hash'),'#student/noah/iep');
+ assert(!e.html().includes('student-supporting-sections'));
+ assert(!e.html().includes('milestone-timeline'));
+ e.click('student-tab',{value:'progress'});
+ assert.equal(e.run('location.hash'),'#student/noah/progress');
+ assert(!e.html().includes('student-supporting-sections'));
+ assert(!e.html().includes('milestone-timeline'));
+ showSavedPresentLevels(e,'noah');
+ e.click('student-tab',{value:'progress'});
  assert(e.html().includes('milestone-timeline'));
  e.click('select-milestone',{id:'noah',goal:'goal-noah',objective:'goal-noah-o1'});
  assert.equal(e.run('location.hash'),'#student/noah/goal-noah/goal-noah-o1');
  e.click('student-tab',{value:'present'});
- assert(e.html().includes('No present levels assessment yet'));
- e.click('student-tab',{value:'iep'});
+ assert(e.html().includes('Saved summary'));
+ e.click('student-tab',{value:'progress'});
  assert.equal(e.run('activeObjective("noah").id'),'goal-noah-o1');
  e.handlers.keydown({target:{dataset:{action:'student-tab'}},key:'Home',preventDefault(){}});
  assert.equal(e.run('studentTab'),'present');
+ e.handlers.keydown({target:{dataset:{action:'student-tab'}},key:'End',preventDefault(){}});
+ assert.equal(e.run('studentTab'),'progress');
 });
 
 test('Seeded notes, progress, and goal baselines do not prefill present levels',()=>{
@@ -51,8 +62,13 @@ test('Seeded notes, progress, and goal baselines do not prefill present levels',
  assert(!e.html().includes('Independently solves 4 of 10 problems.'));
  assert(!e.html().includes('95%'));
  assert(!e.html().includes('Example source'));
- e.click('student-tab',{value:'iep'});
+ showSavedPresentLevels(e,'noah');
+ e.click('student-tab',{value:'goals'});
  assert(e.html().includes('Independently solves 4 of 10 problems.'));
+ assert(!e.html().includes('milestone-timeline'));
+ e.click('student-tab',{value:'progress'});
+ assert(e.html().includes('milestone-timeline'));
+ assert(!e.html().includes('IEP goal details'));
 });
 
 test('A saved present-level draft reveals matching baseline assessment previews',()=>{

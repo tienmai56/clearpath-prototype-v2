@@ -107,7 +107,7 @@ function openMilestoneGuidance(s,g,o){
 }
 function selectMilestone(id,gid,oid,navigateTo=false){
  const g=findGoal(id,gid),o=g?.objectives.find(o=>o.id===oid);if(!g||!o)return false;
- activeGoalIds[id]=gid;activeObjectiveIds[id]=oid;studentTab='iep';
+ activeGoalIds[id]=gid;activeObjectiveIds[id]=oid;studentTab='progress';
  navigate('student/'+id+'/'+gid+'/'+oid);return true;
 }
 function handleJourneyAction(action,el){

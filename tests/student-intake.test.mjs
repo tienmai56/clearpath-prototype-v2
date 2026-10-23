@@ -55,7 +55,7 @@ await check('Phone document and video uploads appear on desktop and survive conf
 });
 
 await check('Every class profile starts empty and analysis leads to independent output choices',async()=>{
- const e=app(),ids=JSON.parse(e.run('JSON.stringify(students.map(s=>s.id))'));assert.equal(ids.length,12);for(const id of ids){e.view('student/'+id);await settle();assert(e.html().includes('No present levels assessment yet'));assert(!e.html().includes('Example present levels'));assert.equal((e.html().match(/role="tab"/g)||[]).length,2);}
+ const e=app(),ids=JSON.parse(e.run('JSON.stringify(students.map(s=>s.id))'));assert.equal(ids.length,12);for(const id of ids){e.view('student/'+id);await settle();assert(e.html().includes('No present levels assessment yet'));assert(!e.html().includes('Example present levels'));assert.equal((e.html().match(/role="tab"/g)||[]).length,3);}
  e.view('student/amir');await settle();e.click('intake-analyze',{id:'amir'});assert(e.html().includes('Analyzing student information'));assert(e.html().includes('Analysis is simulated'));
  for(let i=0;i<3;i++)e.run('advanceIntakeAnalysis("amir",intakeSession("amir").analysisToken)');
  assert(e.html().includes('What would you like to draft?'));
@@ -82,7 +82,7 @@ await check('Selecting both outputs saves editable present levels and draft obje
  e.click('intake-edit',{id:'amir'});assert(e.html().includes('Objective 1:</label>'));assert(e.html().includes('Choose the operation for a one-step problem</textarea>'));
  e.run('handleIntakeInput({dataset:{intakeField:"goal.objectives.0.target",student:"amir"},value:"85"})');await e.run('saveIntakeDrafts("amir")');assert.equal(e.run('goalPlansFor("amir").length'),2);assert.equal((await snapshot('amir')).drafts.goal.objectives[0].target,85);
  e.click('intake-edit',{id:'amir'});e.click('intake-cancel',{id:'amir'});assert.equal(e.run('intakeSession("amir").stage'),'saved');
- const reload=app();reload.view('student/amir/iep');await settle();assert(reload.html().includes('Choose and solve word problems'));assert(reload.html().includes('Needs approval'));
+ const reload=app();reload.view('student/amir/iep');await settle();assert(reload.html().includes('Choose and solve word problems'));assert(reload.html().includes('Draft'));assert(reload.html().includes('Approve objectives'));
 });
 
 await check('Goals-only output leaves present levels empty, and failed saves retain the edited draft',async()=>{

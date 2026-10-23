@@ -69,6 +69,7 @@ await check('Every class profile starts empty and analysis leads to independent 
  assert(e.html().includes('present-academic-item'));assert(e.html().includes('present-parent-quote'));assert(e.html().includes('present-baseline'));assert(e.html().includes('baseline-assessment-list'));
  e.click('baseline-assessment',{id:'amir',assessment:'operations'});assert(e.modal().includes('Choose the Operation'));e.click('close');
  const reload=app();reload.view('student/amir');await settle();assert(reload.html().includes('Teacher-edited summary'));assert(reload.html().includes('Edit draft'));
+ reload.click('student-tab',{value:'goals'});assert(reload.html().includes('Create IEP goals'));
 });
 
 await check('Selecting both outputs saves editable present levels and draft objectives without duplicating goals',async()=>{
@@ -82,7 +83,7 @@ await check('Selecting both outputs saves editable present levels and draft obje
  e.click('intake-edit',{id:'amir'});assert(e.html().includes('Objective 1:</label>'));assert(e.html().includes('Choose the operation for a one-step problem</textarea>'));
  e.run('handleIntakeInput({dataset:{intakeField:"goal.objectives.0.target",student:"amir"},value:"85"})');await e.run('saveIntakeDrafts("amir")');assert.equal(e.run('goalPlansFor("amir").length'),2);assert.equal((await snapshot('amir')).drafts.goal.objectives[0].target,85);
  e.click('intake-edit',{id:'amir'});e.click('intake-cancel',{id:'amir'});assert.equal(e.run('intakeSession("amir").stage'),'saved');
- const reload=app();reload.view('student/amir/iep');await settle();assert(reload.html().includes('Goal 2: Choose and solve word problems'));assert(reload.html().includes('Approve objective'));assert(!reload.html().includes('Established'));assert(!reload.html().includes('Mark as achieved'));
+ const reload=app();reload.view('student/amir/iep');await settle();assert(reload.html().includes('Goal 2: Choose and solve word problems'));assert(reload.html().includes('Approve objective'));assert(!reload.html().includes('Create IEP goals'));assert(!reload.html().includes('Established'));assert(!reload.html().includes('Mark as achieved'));
 });
 
 await check('Goals-only output leaves present levels empty, and failed saves retain the edited draft',async()=>{

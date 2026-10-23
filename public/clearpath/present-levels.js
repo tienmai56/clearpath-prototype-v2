@@ -16,11 +16,12 @@ function hasStudentPresentLevels(s) {
 function studentIEPView(s) {
  if(!hasStudentPresentLevels(s))return '';
  const first=s.name.split(' ')[0];
+ const goalWasCreatedWithPresentLevels=!!intakeSession(s.id).savedDrafts.goal;
  return `<div class="student-goals-view">
-  <section class="iep-goal-starter" aria-labelledby="iep-goal-starter-title">
+  ${goalWasCreatedWithPresentLevels?'':`<section class="iep-goal-starter" aria-labelledby="iep-goal-starter-title">
    <div><h2 id="iep-goal-starter-title">Ready to create IEP goals?</h2><p>Start with editable goal and objective drafts based on ${esc(first)}’s saved present levels.</p></div>
    ${btn('Create IEP goals','create-iep-goals','primary',`data-id="${s.id}"`)}
-  </section>
+  </section>`}
   <div id="student-plan">${studentPlan(s)}</div>
  </div>`;
 }

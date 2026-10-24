@@ -123,7 +123,6 @@ function navigate(hash){closeModal();if(location.hash===`#${hash}`)render();else
 function shell(content,page){const nav=page==='student'?'class':page==='assignments'?'studio':page;return `
  <aside class="sidebar"><a href="#class" class="brand" aria-label="Clearpath home">${logo}Clearpath</a><div class="workspace-name">Teacher workspace</div><nav class="nav" aria-label="Main navigation">
  <a href="#class" class="${nav==='class'?'active':''}" ${nav==='class'?'aria-current="page"':''}>${icon('class')}<span>My class</span><span class="nav-count">${students.length}</span></a>
- <a href="#plans" class="${nav==='plans'?'active':''}" ${nav==='plans'?'aria-current="page"':''}>${icon('plan')}<span>Create &amp; Track Goals</span></a>
  <a href="#studio" class="${nav==='studio'?'active':''}" ${nav==='studio'?'aria-current="page"':''}>${icon('book')}<span>Generate assignments</span></a>
  <a href="#collect" class="${nav==='collect'?'active':''}" ${nav==='collect'?'aria-current="page"':''}>${icon('collect')}<span>Collect data</span></a></nav>
  <div class="sidebar-bottom"><div class="demo-note"><button data-action="about">${icon('info')}About this prototype</button></div><div class="profile"><div class="profile-avatar">MR</div><div><strong>Ms. Rivera</strong><small>Grade 3 teacher</small></div></div></div></aside>

@@ -4,11 +4,9 @@ const {environment}=require('./harness.cjs');
 const target={id:'amir',goal:'goal-amir',objective:'goal-amir-o3'};
 function withPresentLevels(e){e.run("(()=>{const p=intakeSession('amir');p.loaded=true;p.savedDrafts.presentLevels={summary:'Saved present levels'};})()");return e;}
 
-test('The vertical path keeps goals and milestones chronological and opens one scoped panel',()=>{
- const e=withPresentLevels(environment());e.run(`state.goalPlans.amir.push({id:'earlier',title:'Earlier target',content:'Count sets',deadline:'2026-11-01',status:'active',measurement:{method:'Check',frequency:2,review:'2026-10-16'},objectives:[{id:'earlier-second',skill:'Count five',deadline:'2026-11-01',status:'approved',target:80,checks:3,condition:'independently'},{id:'earlier-first',skill:'Count three',deadline:'2026-10-20',status:'approved',target:80,checks:3,condition:'independently'}]})`);
- e.view('student/amir/progress');assert(e.html().indexOf('Earlier target')<e.html().indexOf('One-step word problems'));
- assert(e.html().indexOf('Count three')<e.html().indexOf('Count five'));
- e.click('select-milestone',target);assert.equal((e.html().match(/id="milestone-detail"/g)||[]).length,1);assert(e.html().includes('What’s helping'));assert(e.html().includes('Teaching record'));
+test('Progress shows one focused panel without the goals and stepping-stones column',()=>{
+ const e=withPresentLevels(environment());e.view('student/amir/progress');assert(!e.html().includes('milestone-navigation'));assert(!e.html().includes('Goals &amp; stepping stones'));
+ e.click('select-milestone',target);assert.equal((e.html().match(/id="milestone-detail"/g)||[]).length,1);assert(e.html().includes('What’s helping'));assert(e.html().includes('Still difficult'));assert(e.html().includes('Data collected'));assert.equal((e.html().match(/class="milestone-data-row"/g)||[]).length,3);assert(e.html().indexOf('What we’re learning')<e.html().indexOf('class="chart"'));assert(!e.html().includes('milestone-kicker'));assert(!e.html().includes('Current focus'));assert(!e.html().includes('Observation ·'));assert(!e.html().includes('Teaching record'));
  assert(!e.html().includes('Assignment history'));assert(!e.html().includes('id="progress-objective"'));
  e.click('select-milestone',{...target,objective:'goal-amir-o1'});assert.equal(e.run('activeObjective("amir").id'),'goal-amir-o1');assert(e.html().includes('No checks yet'));
  assert.equal(e.run('milestoneEvidence(getStudent("amir"),findGoal("amir","goal-amir").objectives[0]).length'),0);
@@ -32,7 +30,7 @@ test('A recorded strategy updates only its milestone and student, with dates in 
  assert.equal(e.run('strategyResults(getStudent("amir"),findGoal("amir","goal-amir").objectives[0])[0].status'),'helping');
  assert.equal(e.run('milestoneEvidence(getStudent("amir"),findGoal("amir","goal-amir").objectives[2]).length'),6);
  assert.equal(e.run('objectiveLogs("ben","goal-ben-o1").length'),0);
- e.click('select-milestone',{...target,objective:'goal-amir-o1'});assert(e.html().includes('40% → 80% across 2 checks'));assert(e.html().includes('Chose the operation without a cue.'));
+ e.click('select-milestone',{...target,objective:'goal-amir-o1'});assert(e.html().includes('40% → 80% across 2 checks'));assert(e.run('state.logs.some(log=>log.note==="Chose the operation without a cue.")'));assert(!e.html().includes('Observation ·'));
 });
 
 test('Trying guidance counts only linked checks and surfaces the review within the milestone',async()=>{
@@ -75,11 +73,11 @@ test('New student notes affect milestone guidance, while milestone-specific note
  assert(!e.run('milestoneObservations(getStudent("amir"),findGoal("amir","goal-amir"),findGoal("amir","goal-amir").objectives[2]).some(n=>n.text.includes("operation chart"))'));
 });
 
-test('Lesson variants are gone from every entry point; previous evidence remains readable',()=>{
+test('Lesson variants are gone from every entry point; previous evidence remains stored',()=>{
  const e=withPresentLevels(environment());e.view('studio');assert(!/lesson variants|Teaching plans|two versions/i.test(e.html()));assert(e.html().includes('Adapt a class lesson'));assert(e.html().includes('Create from scratch'));
  e.view('studio/variants');assert.equal(e.run('location.hash'),'#studio');e.view('comparison/sample');assert.equal(e.run('location.hash'),'#studio');
  e.click('new-variants');assert.equal(e.run('location.hash'),'#studio');e.submit('comparison-form',{start:'2026-10-09',review:'2026-10-23',frequency:'3'});assert.equal(e.run('state.comparisons.length'),0);
  e.run(`state.comparisons.push({id:'legacy',title:'Past instruction',groups:{a:[],b:['amir']},objectiveIds:{amir:'goal-amir-o3'},lesson:{b:'Visual boxes'}});state.logs.unshift({id:'legacy-log',student:'amir',goal:'goal-amir',objective:'goal-amir-o3',comparison:'legacy',date:TODAY,score:80,note:'Worked independently.'});state.drafts.push({id:'old-draft',title:'Old variants',studentIds:['amir']});persist()`);
- e.view('student/amir/progress');assert(e.html().includes('Visual boxes'));assert(!e.html().includes('Old variants'));e.click('student-tab',{value:'goals'});assert(!/Teaching plans|Lesson variant drafts|open-draft/.test(e.html()));
+ e.view('student/amir/progress');assert.equal(e.run('legacyStrategy(state.logs.find(log=>log.id==="legacy-log"),getStudent("amir"))'),'Visual boxes');assert(!e.html().includes('Old variants'));e.click('student-tab',{value:'goals'});assert(!/Teaching plans|Lesson variant drafts|open-draft/.test(e.html()));
  const reload=environment(e.storage);assert.equal(reload.run('state.comparisons.length'),1);assert.equal(reload.run('state.logs.length'),1);
 });

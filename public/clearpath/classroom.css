@@ -8,29 +8,30 @@
 .classroom-search input:focus{outline:none}
 .classroom-search input::placeholder{color:#87908c}
 .classroom-results{color:var(--muted);font-size:12px;white-space:nowrap}
-.student-card-grid{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
-.student-card-grid>li{min-width:0}
-.student-card{height:100%;min-height:144px;display:flex;flex-direction:column;gap:23px;padding:22px;border:1px solid #e6ebe8;border-radius:9px;background:#fff;transition:border-color .15s ease,box-shadow .15s ease}
-.student-card:hover{border-color:#a7c1b4;box-shadow:0 4px 15px #31553f0b}
-.student-card:focus-visible{outline:3px solid #82ab99;outline-offset:3px;border-radius:9px}
-.student-card-person{display:flex;align-items:center;gap:13px;min-width:0}
-.student-card .animal-avatar{display:block;flex:none;height:44px;width:44px;overflow:hidden;border:1px solid #dce5df;border-radius:50%;background-image:url('/clearpath/student-animal-avatars.png');background-repeat:no-repeat;background-size:400% 300%;background-position:var(--animal-x) var(--animal-y);box-shadow:0 2px 7px #243d3117}
-.student-card .avatar{height:44px;width:44px;font-size:14px;font-weight:600;border:1px solid #00000004;background:#eef3ec;color:#5d7c60}
-.student-card .av-peach{background:#f8ece3;color:#9a7257}
-.student-card .av-lilac{background:#f0ebf5;color:#847097}
-.student-card .av-blue{background:#e8f0f6;color:#587c96}
-.student-card .av-sage{background:#eaf1e7;color:#64805e}
-.student-card .av-sand{background:#f5efe2;color:#947c4d}
-.student-card .av-rose{background:#f5e9ed;color:#a16f80}
-.student-card h2{font-size:15px;font-weight:550;line-height:1.5;letter-spacing:0;overflow-wrap:anywhere}
-.student-card-person p{font-size:12px;line-height:1.6;color:#7e8982;margin-top:2px}
-.student-card-link{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 0 57px;font-size:12px;color:#557b67}
-.student-card-link .icon{height:15px;width:15px;color:#7c998a}
-.student-card:hover .student-card-link{color:var(--green)}
-.student-search-empty{grid-column:1/-1;text-align:center;padding:68px 20px;border:1px dashed #dce5df;border-radius:9px}
+.classroom-table-card{overflow:hidden;border:1px solid #e1e7e3;border-radius:9px;background:#fff}
+.classroom-table-wrap{overflow-x:auto}
+.classroom-roster{width:100%;min-width:760px;border-collapse:collapse;text-align:left}
+.classroom-roster th,.classroom-roster td{padding:17px 20px;border-bottom:1px solid #edf1ee;vertical-align:middle}
+.classroom-roster thead th{background:#fafcfb;color:#66736c;font-size:12px;font-weight:600}
+.classroom-roster thead th:first-child{width:30%}
+.classroom-roster thead th:nth-child(2){width:12%}
+.classroom-roster thead th:nth-child(n+3){width:19.33%}
+.classroom-roster tbody th{color:var(--ink);font-size:14px;font-weight:550}
+.classroom-roster tbody td{color:#68766f;font-size:13px}
+.classroom-roster tbody tr:last-child th,.classroom-roster tbody tr:last-child td{border-bottom:0}
+.classroom-roster tbody tr:hover{background:#fbfdfb}
+.classroom-student{display:flex;align-items:center;gap:13px;min-width:0}
+.classroom-student>span:last-child{overflow-wrap:anywhere}
+.classroom-student .animal-avatar{display:block;flex:none;height:40px;width:40px;overflow:hidden;border:1px solid #dce5df;border-radius:50%;background-image:url('/clearpath/student-animal-avatars.png');background-repeat:no-repeat;background-size:400% 300%;background-position:var(--animal-x) var(--animal-y);box-shadow:0 2px 7px #243d3117}
+.classroom-table-link{display:inline-flex;align-items:center;gap:9px;color:#3f765d;font-size:12px;font-weight:550;white-space:nowrap}
+.classroom-table-link .icon{height:14px;width:14px;color:#7c998a;transition:transform .15s ease}
+.classroom-table-link:hover{text-decoration:underline;color:var(--green)}
+.classroom-table-link:hover .icon{transform:translateX(2px)}
+.classroom-table-link:focus-visible{outline:2px solid #82ab99;outline-offset:4px;border-radius:2px}
+.student-search-empty{text-align:center;padding:68px 20px}
 .student-search-empty>.icon{margin:0 auto 15px;color:#8da494;height:25px;width:25px}
 .student-search-empty h2{font-size:17px}
 .student-search-empty p{font-size:13px;color:var(--muted);margin:7px 0 18px}
-@media(max-width:1120px){.student-card-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}}
-@media(max-width:620px){.classroom-page .page-head{align-items:center;gap:14px}.classroom-page .page-head .btn{font-size:12px;padding:8px 12px}.classroom-toolbar{align-items:flex-start;flex-direction:column;gap:10px;margin-bottom:20px}.classroom-search{width:100%}.classroom-results:empty{display:none}.student-card-grid{grid-template-columns:1fr;gap:14px}.student-card{min-height:128px;padding:20px;gap:18px}}
-@media(prefers-reduced-motion:reduce){.student-card{transition:none}}
+@media(max-width:850px){.classroom-roster th,.classroom-roster td{padding-left:15px;padding-right:15px}}
+@media(max-width:620px){.classroom-page .page-head{align-items:center;gap:14px}.classroom-page .page-head .btn{font-size:12px;padding:8px 12px}.classroom-toolbar{align-items:flex-start;flex-direction:column;gap:10px;margin-bottom:20px}.classroom-search{width:100%}.classroom-results:empty{display:none}.classroom-roster{min-width:690px}.classroom-roster th,.classroom-roster td{padding:14px 13px}.classroom-student .animal-avatar{height:36px;width:36px}}
+@media(prefers-reduced-motion:reduce){.classroom-table-link .icon{transition:none}}

@@ -1,0 +1,314 @@
+:root {
+  --ink: #111111;
+  --body: #111111;
+  --muted: #686870;
+  --green: #ff2b85;
+  --green-dark: #d80a64;
+  --line: #e8e5e8;
+  --paper: #ffffff;
+  --bg: #ffffff;
+  --pink-soft: #fff0f6;
+  --pink-pale: #ffe0ec;
+  --pink-mid: #ff91bb;
+}
+
+html,
+body,
+.shell,
+.topbar,
+main,
+.sidebar {
+  background: #ffffff;
+}
+
+body,
+.nav a,
+.breadcrumb strong,
+.student-name,
+.roster td,
+.compact-table td,
+.field label,
+.field-label,
+.detail-value,
+.section-description,
+.goal-statement,
+.context-item p,
+.instruction-list dd,
+.lesson-field > label,
+.material-title,
+.collection-method strong,
+.collection-selected li strong,
+.collection-file-choice strong,
+.collection-result h2,
+.collection-result section b,
+.milestone-copy strong,
+.guidance-main > p,
+.dashboard-recommendation h3 {
+  color: var(--ink);
+}
+
+h1,
+h2,
+h3,
+h4,
+.metric,
+.result-metric strong,
+.milestone-result strong,
+.collection-result > strong {
+  color: #111111;
+}
+
+.subtitle,
+.eyebrow,
+.caption,
+.muted,
+.workspace-name,
+.breadcrumb,
+.date,
+.section-row p,
+.card-head small,
+.field small,
+.collection-method small,
+.collection-dropzone small,
+.collection-selected li small,
+.collection-processing p,
+.collection-file-choice small,
+.collection-result > small,
+.milestone-copy > span,
+.lesson-wizard-heading > p:last-child {
+  color: var(--muted);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline-color: var(--pink-mid);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.lesson-field > input:focus,
+.lesson-field > textarea:focus,
+.lesson-quick-settings select:focus {
+  outline-color: var(--pink-mid);
+  border-color: var(--green);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--green);
+}
+
+.brand,
+.mobile-brand {
+  color: var(--ink);
+}
+
+.brand-mark,
+.mobile-brand .brand-mark {
+  color: var(--green);
+}
+
+.nav a:hover,
+.icon-btn:hover,
+.filter:hover,
+.roster tbody tr:hover {
+  background: var(--pink-soft);
+}
+
+.nav a.active,
+.filter.active {
+  color: var(--green-dark);
+  background: var(--pink-soft);
+}
+
+.nav-count {
+  color: var(--green-dark);
+}
+
+.btn {
+  color: var(--ink);
+  border-color: #d8d4d8;
+  background: #ffffff;
+}
+
+.btn:hover {
+  border-color: var(--pink-mid);
+  background: var(--pink-soft);
+}
+
+.btn.primary,
+.skip,
+.lesson-page-button[aria-current="page"] {
+  color: #ffffff;
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.btn.primary:hover,
+.skip:hover {
+  border-color: var(--green-dark);
+  background: var(--green-dark);
+}
+
+.btn.soft,
+.automatic-sources,
+.lesson-setting-static,
+.lesson-quick-settings label {
+  background: var(--pink-soft);
+}
+
+.text-btn,
+.tab.active,
+.creation-link,
+.qr-status,
+#phone-status,
+.flow-context > a,
+.record-title span,
+.milestone-data-method,
+.guidance-reason summary {
+  color: var(--green-dark);
+}
+
+.tab.active {
+  border-bottom-color: var(--green);
+}
+
+.profile-avatar,
+.avatar {
+  background: var(--pink-soft);
+  color: var(--green-dark);
+}
+
+.progress-track,
+.collection-result-bar {
+  background: var(--pink-pale);
+}
+
+.progress-track i,
+.collection-result-bar i,
+.processing-mark span {
+  background: var(--green);
+}
+
+.student-chip:has(input:checked),
+.lesson-refine-option:has(input:checked),
+.lesson-theme-card:has(input:checked) {
+  border-color: var(--green);
+  background: var(--pink-soft);
+}
+
+.creation-card:hover,
+.creation-card:focus-visible {
+  border-color: var(--green);
+}
+
+.creation-card:focus-visible,
+.shared-target-option:focus-within {
+  outline-color: var(--green);
+}
+
+.collection-methods,
+.collection-file-sidebar {
+  background: #ffffff;
+}
+
+.collection-method:hover,
+.collection-phone-row:hover,
+.collection-sample-card:hover,
+.collection-student-option:hover,
+.collection-student-option.selected {
+  border-color: var(--pink-mid);
+  background: var(--pink-soft);
+}
+
+.collection-method.active,
+.collection-file-choice.active {
+  border-color: var(--green);
+  background: var(--pink-soft);
+  box-shadow: 0 0 0 1px var(--green);
+}
+
+.collection-method > span:first-child,
+.collection-selected li > span:first-child,
+.collection-sample-arrow,
+.collection-processing > span,
+.collection-history > div > span {
+  color: var(--green-dark);
+  background: var(--pink-soft);
+}
+
+.collection-dropzone {
+  border-color: var(--pink-mid);
+  background: #fffafd;
+}
+
+.collection-dropzone:hover {
+  border-color: var(--green);
+  background: var(--pink-soft);
+}
+
+.collection-upload-icon,
+.collection-phone-icon {
+  color: var(--green);
+  box-shadow: 0 4px 12px rgba(255, 43, 133, 0.14);
+}
+
+.collection-phone-row {
+  border-color: var(--pink-pale);
+  background: #fffafd;
+}
+
+.collection-document {
+  background: #fafafa;
+}
+
+.collection-result > span,
+.collection-phone-modal p,
+.collection-student-option.selected {
+  color: var(--green-dark);
+}
+
+.milestone-node.selected .milestone-copy strong,
+.milestone-button:hover .milestone-copy strong,
+.lesson-step.active,
+.journey-goal-icon,
+.journey-eyebrow {
+  color: var(--green-dark);
+}
+
+.milestone-node.current .milestone-number,
+.milestone-node.ready .milestone-number,
+.lesson-step.active > span {
+  border-color: var(--green);
+  background: var(--green);
+  color: #ffffff;
+}
+
+.milestone-node.selected .milestone-number {
+  box-shadow: 0 0 0 5px var(--pink-soft);
+}
+
+.milestone-status.current,
+.milestone-status.ready,
+.guidance-main .guidance-evidence-line,
+.milestone-ready,
+.dashboard-guidance {
+  color: var(--green-dark);
+  background: var(--pink-soft);
+}
+
+.dashboard-guidance {
+  border-color: var(--pink-pale);
+}
+
+.lesson-page-button:hover:not(:disabled) {
+  border-color: var(--pink-mid);
+  background: var(--pink-soft);
+}
+
+@media (max-width: 760px) {
+  .milestone-node.selected .milestone-button {
+    background: var(--pink-soft);
+  }
+}

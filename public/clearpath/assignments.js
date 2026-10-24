@@ -5,6 +5,8 @@ let richSelection=null;
 let assignmentSaveTimer=null;
 let lessonGenerationTimer=null;
 const LESSON_PLAN_LIMIT=20*1024*1024;
+const LESSONS_PER_PAGE=5;
+let lessonOverviewPagination={batchId:'',page:1};
 function alphabeticalStudents(list=students){return list.slice().sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base',numeric:true}))}
 function alphabeticalIds(ids){return ids.slice().sort((a,b)=>getStudent(a).name.localeCompare(getStudent(b).name,'en',{sensitivity:'base',numeric:true}))}
 function gradeLabel(n){return +n===0?'Kindergarten':'Grade '+n}
@@ -162,13 +164,25 @@ function createStudentAssignments(draft,{revisionOf=null,applyGuidance=false}={}
 function assignmentBatches(){
  const batches=new Map();for(const record of state.assignments){const key=record.batchId||record.id;if(!batches.has(key))batches.set(key,{id:key,records:[]});batches.get(key).records.push(record);}return [...batches.values()];
 }
+function lessonOverviewPager(batchId,page,pageCount,total){
+ if(pageCount<=1)return '';
+ const start=(page-1)*LESSONS_PER_PAGE+1,end=Math.min(page*LESSONS_PER_PAGE,total);
+ const pages=Array.from({length:pageCount},(_,index)=>{const value=index+1;return `<button type="button" class="lesson-page-button" data-action="lesson-overview-page" data-id="${esc(batchId)}" data-page="${value}" ${value===page?'aria-current="page"':''} aria-label="Lesson page ${value}">${value}</button>`}).join('');
+ return `<nav class="lesson-pagination" aria-label="Lesson pages"><span>Showing ${start}–${end} of ${total} lessons</span><div class="lesson-pagination-buttons"><button type="button" class="lesson-page-button lesson-page-direction" data-action="lesson-overview-page" data-id="${esc(batchId)}" data-page="${page-1}" aria-label="Previous lesson page" ${page===1?'disabled':''}>${icon('back')}</button>${pages}<button type="button" class="lesson-page-button lesson-page-direction" data-action="lesson-overview-page" data-id="${esc(batchId)}" data-page="${page+1}" aria-label="Next lesson page" ${page===pageCount?'disabled':''}>${icon('arrow')}</button></div></nav>`;
+}
 function assignmentOverview(id){
  const batch=assignmentBatches().find(b=>b.id===id);
  if(!batch)return `<div class="empty"><h2>Assignment not found</h2><a href="#studio" data-action="back-materials" class="btn">Back to saved materials</a></div>`;
  const rows=batch.records.flatMap(record=>record.studentIds.map(id=>({record,student:getStudent(id)}))).sort((a,b)=>a.student.name.localeCompare(b.student.name,'en',{sensitivity:'base'}));
  const lessonPlans=batch.records.every(record=>record.kind==='lesson'),heading=lessonPlans?'Personalized lesson plans':'Assignment overview';
+ if(lessonOverviewPagination.batchId!==id)lessonOverviewPagination={batchId:id,page:1};
+ const pageCount=lessonPlans?Math.max(1,Math.ceil(rows.length/LESSONS_PER_PAGE)):1;
+ const page=Math.min(Math.max(1,lessonOverviewPagination.page),pageCount);
+ lessonOverviewPagination.page=page;
+ const visibleRows=lessonPlans?rows.slice((page-1)*LESSONS_PER_PAGE,page*LESSONS_PER_PAGE):rows;
+ const pager=lessonPlans?lessonOverviewPager(id,page,pageCount,rows.length):'';
  const summary=lessonPlans?`${rows.length} personalized ${rows.length===1?'lesson':'lessons'} ready to review`:`${rows.length} ${rows.length===1?'student':'students'} · ${batch.records.length} ${batch.records.length===1?'draft':'drafts'} created`;
- return `<a href="#studio/saved" class="back">${icon('back')}Materials</a><div class="page-head"><div><h1>${heading}</h1><p class="subtitle">${summary}</p></div></div><div class="table-card"><div class="table-wrap"><table class="roster assignment-overview"><caption class="sr-only">Students and their generated ${lessonPlans?'lesson plans':'assignments'}</caption><thead><tr><th scope="col">Student</th><th scope="col">${lessonPlans?'Personalized lesson':'Assignment'}</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows.map(({record:r,student:s})=>`<tr><td><a class="student-name" href="#student/${s.id}">${avatar(s)}<span class="name-text">${esc(s.name)}<small>${gradeLabel(s.grade)}</small></span></a></td><td><span class="material-title">${esc(r.title)}</span>${r.revisionOf?'<small class="material-detail">Revised draft</small>':lessonPlans?`<small class="material-detail">Built from ${r.model.workflow==='adapt'?'your class lesson':'student learning data'}</small>`:''}</td><td><span class="material-status">${r.status==='ready'?'Saved':'Ready to review'}</span></td><td class="material-action"><div class="material-actions">${btn(lessonPlans?'Open lesson':'Open draft','open-assignment','small',`data-id="${r.id}" aria-label="Open ${lessonPlans?'lesson':'draft'} for ${esc(s.name)}"`)}${lessonPlans?btn(icon('print')+'Print / save PDF','print-lesson','small',`data-id="${r.id}" aria-label="Print or save ${esc(s.name)}’s lesson as PDF"`):''}</div></td></tr>`).join('')}</tbody></table></div></div><div class="overview-footer"><a class="btn" href="#studio">Create more lessons</a></div>`;
+ return `<a href="#studio/saved" class="back">${icon('back')}Materials</a><div class="page-head"><div><h1>${heading}</h1><p class="subtitle">${summary}</p></div></div><div class="table-card assignment-overview-card"><div class="table-wrap"><table class="roster assignment-overview"><caption class="sr-only">Students and their generated ${lessonPlans?'lesson plans':'assignments'}</caption><thead><tr><th scope="col">Student</th><th scope="col">${lessonPlans?'Personalized lesson':'Assignment'}</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${visibleRows.map(({record:r,student:s})=>`<tr><td><a class="student-name" href="#student/${s.id}">${avatar(s)}<span class="name-text">${esc(s.name)}<small>${gradeLabel(s.grade)}</small></span></a></td><td><span class="material-title">${esc(r.title)}</span>${r.revisionOf?'<small class="material-detail">Revised draft</small>':lessonPlans?`<small class="material-detail">Built from ${r.model.workflow==='adapt'?'your class lesson':'student learning data'}</small>`:''}</td><td><span class="material-status">${r.status==='ready'?'Saved':'Ready to review'}</span></td><td class="material-action"><div class="material-actions">${btn(lessonPlans?'Open lesson':'Open draft','open-assignment','small',`data-id="${r.id}" aria-label="Open ${lessonPlans?'lesson':'draft'} for ${esc(s.name)}"`)}${lessonPlans?btn(icon('print')+'Print / save PDF','print-lesson','small',`data-id="${r.id}" aria-label="Print or save ${esc(s.name)}’s lesson as PDF"`):''}</div></td></tr>`).join('')}</tbody></table></div>${pager}</div><div class="overview-footer"><a class="btn" href="#studio">Create more lessons</a></div>`;
 }
 function materialDate(value,empty='—'){
  if(!value||!Number.isFinite(Date.parse(value)))return `<span class="muted">${empty}</span>`;
@@ -277,7 +291,8 @@ function handleAssignmentAction(action,el){
  if(action==='guided-materials'){openDraftingModal(el.dataset.id);return true;}
  if(action==='open-assignment'){openAssignmentEditor(el.dataset.id);return true;}
  if(action==='print-lesson'){openAssignmentEditor(el.dataset.id);setTimeout(()=>window.print(),50);return true;}
- if(action==='open-assignment-overview'){navigate('assignments/'+el.dataset.id);return true;}
+ if(action==='open-assignment-overview'){lessonOverviewPagination={batchId:el.dataset.id,page:1};navigate('assignments/'+el.dataset.id);return true;}
+ if(action==='lesson-overview-page'){const page=Number(el.dataset.page);if(Number.isInteger(page)&&page>0){lessonOverviewPagination={batchId:el.dataset.id,page};render();}return true;}
  if(action==='back-materials'){studioTab='saved';navigate('studio/saved');return true;}
  if(action==='rich-format'){formatAssignment(el.dataset.command);return true;}
  if(action==='save-assignment'){if(flushAssignmentEditor(true)){const record=state.assignments.find(a=>a.id===assignmentFlow.recordId);const student=assignmentFlow.returnStudent;if(student){openStudentSection(student,'iep','materials');}else navigate('assignments/'+(record.batchId||record.id));toast('Material saved.');}return true;}

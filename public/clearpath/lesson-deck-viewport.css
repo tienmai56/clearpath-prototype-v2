@@ -1,0 +1,9 @@
+/* Keep deck actions visible on short laptop viewports. */
+.modal:has(.lesson-deck-shell){display:flex;flex-direction:column}
+.modal:has(.lesson-deck-shell)>.modal-head{flex:none}
+.modal:has(.lesson-deck-shell)>.modal-body{height:auto;flex:1;min-height:0}
+.lesson-deck-shell{min-height:0}
+.lesson-deck-stage>.lesson-slide-frame{width:min(100%,calc((92vh - 240px)*16/9))}
+.lesson-studio-data-note{display:flex;flex-wrap:wrap;gap:7px 12px;margin-top:9px;color:#7a7480;font-size:10px}
+.lesson-studio-data-note span{display:flex;align-items:center;gap:4px}
+.lesson-studio-data-note .icon{width:11px;height:11px;color:#7c3aed}

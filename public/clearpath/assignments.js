@@ -295,6 +295,16 @@ function buildPersonalizedLessonHTML(d){
  if(d.workflow==='adapt'&&d.adaptation?.modality==='visual')return buildVisualAdaptationHTML(d,{s,g,o,source,baseline,data,measurement,supports,classContext});
  return sanitizeRichHTML(`<h2>${esc(d.title)}</h2><p><strong>Student:</strong> ${esc(s.name)} &nbsp; <strong>Grade:</strong> ${esc(gradeLabel(s.grade))}</p>${classContext?`<p><strong>Class lesson:</strong> ${esc(classContext)}</p>`:''}<p><strong>Source:</strong> ${esc(source)}</p><h3>Instructional focus</h3><p><strong>IEP goal:</strong> ${esc(g?.content||g?.title||'Review the student’s current IEP goal.')}</p><p><strong>Current objective:</strong> ${esc(o?.skill||'Review the next approved objective.')}</p><h3>What Clearpath considered</h3><p><strong>Present levels:</strong> ${esc(baseline)}</p><p><strong>Latest data:</strong> ${esc(data)}</p><h3>Lesson sequence</h3><ol>${steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><h3>Personalized instruction</h3><ul>${supports.map(step=>`<li>${esc(step)}</li>`).join('')}</ul><h3>Quick progress check</h3><p>Use ${esc(measurement)} to record what ${esc(s.name.split(' ')[0])} can do independently. Keep prompted responses separate and note which supports were used.</p><h3>Teacher reflection</h3><p>What helped? ________________________________________________</p><p>What should change next time? _________________________________</p>`);
 }
+function upgradeVisualAdaptationDrafts(){
+ let upgraded=0;
+ for(const record of state.assignments||[]){
+  const isUntouched=record.modifiedAt===null;
+  const isVisualAdaptation=record.kind==='lesson'&&record.model?.workflow==='adapt'&&record.model?.adaptation?.modality==='visual';
+  if(!isUntouched||!isVisualAdaptation||String(record.html||'').includes('class="visual-material"'))continue;
+  record.html=buildPersonalizedLessonHTML(record.model);record.visualTemplateVersion=1;upgraded++;
+ }
+ return upgraded;
+}
 function buildAssignmentHTML(d){
  if(d.studentIds?.length>1)return sanitizeRichHTML(`<h2>${esc(d.title)}</h2>`+alphabeticalIds(d.studentIds).map(id=>{const model=materialForStudent(d,id),o=objectiveForDraft(d,id);return `<h3>${esc(getStudent(id).name)} · ${esc(domainNames[model.domain])}</h3>${o?`<p>Objective: ${esc(o.skill)}</p>`:''}`+buildStudentAssignmentHTML(model).replace(/^<h2>[\s\S]*?<\/h2>/,'');}).join(''));
  const model=d.studentIds?.length===1?materialForStudent(d,d.studentIds[0]):d;

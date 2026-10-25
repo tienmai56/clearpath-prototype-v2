@@ -5,6 +5,7 @@ let richSelection=null;
 let assignmentSaveTimer=null;
 let lessonGenerationTimer=null;
 let lessonDeckSlideIndex=0;
+let pendingLessonDeckId=null;
 const LESSON_PLAN_LIMIT=20*1024*1024;
 const LESSONS_PER_PAGE=5;
 const adaptationSubjects={ela:'English language arts',math:'Math',science:'Science',social:'Social studies',other:'Other'};
@@ -279,7 +280,7 @@ function setLessonPlanFile(file){
 }
 function beginLessonGeneration(){
  if(!lesson)return;
- ensureAutomaticLessonTargets(lesson);lesson.kind='lesson';lesson.generationPending=true;lesson.generationError='';state.lesson=structuredClone(lesson);persist();navigate('studio/processing');queueLessonGeneration();
+ ensureAutomaticLessonTargets(lesson);lesson.kind='lesson';lesson.generationPending=true;lesson.generationError='';state.lesson=structuredClone(lesson);persist();return finishLessonGeneration();
 }
 function queueLessonGeneration(){if(lessonGenerationTimer||!lesson?.generationPending)return;lessonGenerationTimer=setTimeout(finishLessonGeneration,1400)}
 function finishLessonGeneration(){
@@ -287,9 +288,10 @@ function finishLessonGeneration(){
  if(!lesson?.generationPending)return null;
  ensureAutomaticLessonTargets(lesson);
  const records=createStudentAssignments(lesson);
- if(!records){lesson.generationPending=false;lesson.generationError='The lesson plans could not be saved. Free some browser storage and try again.';render();return null;}
- lesson.generationPending=false;state.lesson=structuredClone(lesson);persist();navigate('assignments/'+records[0].batchId);return records;
+ if(!records){lesson.generationPending=false;lesson.generationError='The lesson plans could not be saved. Free some browser storage and try again.';state.lesson=structuredClone(lesson);persist();if(route().page==='studio'&&route().id==='processing')render();else formError('lesson-theme-error',lesson.generationError);return null;}
+ lesson.generationPending=false;state.lesson=structuredClone(lesson);persist();pendingLessonDeckId=records[0].id;navigate('assignments/'+records[0].batchId);return records;
 }
+function openPendingLessonDeck(){const id=pendingLessonDeckId;if(!id)return false;pendingLessonDeckId=null;openLessonDeck(id,0);return true;}
 function lessonProcessingView(draft){
  queueLessonGeneration();
  const count=draft.studentIds.length,adapted=draft.workflow==='adapt';
@@ -460,7 +462,7 @@ function openLessonDeck(id,index=lessonDeckSlideIndex){
  const record=state.assignments.find(a=>a.id===id);if(!record)return;
  const slides=lessonDeckSlides(record),names=alphabeticalIds(record.studentIds).map(studentId=>getStudent(studentId).name).join(', ');lessonDeckSlideIndex=Math.max(0,Math.min(Number(index)||0,slides.length-1));assignmentFlow={stage:'deck',recordId:id,model:structuredClone(record.model),returnStudent:null};
  const theme=lessonThemeLabels[record.model.theme]?record.model.theme:'low-stimulation';
- openModal('Lesson deck',`${names} · ${slides.length} slides`,`<div class="lesson-deck-shell"><aside class="lesson-deck-sidebar" aria-label="Lesson slides"><div class="lesson-deck-sidebar-head"><strong>Slides</strong><span>${slides.length}</span></div><div class="lesson-deck-thumbnails">${slides.map((slide,slideIndex)=>`<button type="button" class="lesson-deck-thumbnail ${slideIndex===lessonDeckSlideIndex?'active':''}" data-action="lesson-deck-slide" data-id="${record.id}" data-index="${slideIndex}" aria-label="Open slide ${slideIndex+1}: ${esc(slide.label)}" ${slideIndex===lessonDeckSlideIndex?'aria-current="true"':''}><span>${slideIndex+1}</span>${lessonDeckSlideMarkup(record,slideIndex,`lesson-thumb-${slideIndex}`)}<strong>${esc(slide.label)}</strong></button>`).join('')}</div></aside><section class="lesson-deck-workspace"><div class="lesson-deck-toolbar"><div><span class="lesson-deck-status"><i></i>Generated locally</span><strong>${esc(slides[lessonDeckSlideIndex].label)}</strong></div><div class="lesson-deck-themes" aria-label="Slide theme">${Object.entries(lessonThemeLabels).map(([key,label])=>`<button type="button" data-action="lesson-deck-theme" data-id="${record.id}" data-theme="${key}" class="lesson-deck-theme-swatch theme-swatch-${key} ${theme===key?'active':''}" aria-label="Use ${esc(label)} theme" title="${esc(label)}"></button>`).join('')}</div></div><div class="lesson-deck-stage">${lessonDeckSlideMarkup(record,lessonDeckSlideIndex,'lesson-deck-active-slide')}</div><div class="lesson-deck-navigation"><button type="button" class="btn small" data-action="lesson-deck-slide" data-id="${record.id}" data-index="${lessonDeckSlideIndex-1}" ${lessonDeckSlideIndex===0?'disabled':''}>${icon('back')}Previous</button><span>Slide ${lessonDeckSlideIndex+1} of ${slides.length}</span><button type="button" class="btn small" data-action="lesson-deck-slide" data-id="${record.id}" data-index="${lessonDeckSlideIndex+1}" ${lessonDeckSlideIndex===slides.length-1?'disabled':''}>Next${icon('arrow')}</button></div><div class="modal-foot lesson-deck-footer"><span>Frontend-only mockup · No AI or backend calls</span><div class="actions">${btn(icon('print')+'Print / PDF','print-lesson-deck')}${btn(icon('save')+'Save lesson','save-lesson-deck','primary')}</div></div></section></div>`,{wide:true,printable:true});
+ openModal('Lesson slide editor',`${names} · ${slides.length} slides`,`<div class="lesson-deck-shell"><aside class="lesson-deck-sidebar" aria-label="Lesson slides"><div class="lesson-deck-sidebar-head"><strong>Slides</strong><span>${slides.length}</span></div><div class="lesson-deck-thumbnails">${slides.map((slide,slideIndex)=>`<button type="button" class="lesson-deck-thumbnail ${slideIndex===lessonDeckSlideIndex?'active':''}" data-action="lesson-deck-slide" data-id="${record.id}" data-index="${slideIndex}" aria-label="Open slide ${slideIndex+1}: ${esc(slide.label)}" ${slideIndex===lessonDeckSlideIndex?'aria-current="true"':''}><span>${slideIndex+1}</span>${lessonDeckSlideMarkup(record,slideIndex,`lesson-thumb-${slideIndex}`)}<strong>${esc(slide.label)}</strong></button>`).join('')}</div></aside><section class="lesson-deck-workspace"><div class="lesson-deck-toolbar"><div><span class="lesson-deck-status"><i></i>Ready to edit</span><strong>${esc(slides[lessonDeckSlideIndex].label)}</strong></div><div class="lesson-deck-themes" aria-label="Slide theme">${Object.entries(lessonThemeLabels).map(([key,label])=>`<button type="button" data-action="lesson-deck-theme" data-id="${record.id}" data-theme="${key}" class="lesson-deck-theme-swatch theme-swatch-${key} ${theme===key?'active':''}" aria-label="Use ${esc(label)} theme" title="${esc(label)}"></button>`).join('')}</div></div><div class="lesson-deck-stage">${lessonDeckSlideMarkup(record,lessonDeckSlideIndex,'lesson-deck-active-slide')}</div><div class="lesson-deck-navigation"><button type="button" class="btn small" data-action="lesson-deck-slide" data-id="${record.id}" data-index="${lessonDeckSlideIndex-1}" ${lessonDeckSlideIndex===0?'disabled':''}>${icon('back')}Previous</button><span>Slide ${lessonDeckSlideIndex+1} of ${slides.length}</span><button type="button" class="btn small" data-action="lesson-deck-slide" data-id="${record.id}" data-index="${lessonDeckSlideIndex+1}" ${lessonDeckSlideIndex===slides.length-1?'disabled':''}>Next${icon('arrow')}</button></div><div class="modal-foot lesson-deck-footer"><span>Review each slide before using it with students.</span><div class="actions">${btn(icon('print')+'Print / PDF','print-lesson-deck')}${btn(icon('save')+'Save and exit','save-lesson-deck','primary')}</div></div></section></div>`,{wide:true,printable:true});
 }
 function openAssignmentEditor(id){
  const record=state.assignments.find(a=>a.id===id);if(!record)return;

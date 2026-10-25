@@ -6,6 +6,12 @@ let assignmentSaveTimer=null;
 let lessonGenerationTimer=null;
 const LESSON_PLAN_LIMIT=20*1024*1024;
 const LESSONS_PER_PAGE=5;
+const adaptationSubjects={ela:'English language arts',math:'Math',science:'Science',social:'Social studies',other:'Other'};
+const adaptationNeedOptions={
+ communication:{communicationVisual:'Visual directions',communicationSentence:'Sentence starters',communicationChoice:'Choice-based responses',communicationAAC:'AAC or alternative response'},
+ academic:{academicModel:'Modeled example',academicChunk:'Chunk the task',academicVocabulary:'Preteach vocabulary',academicGuided:'Guided practice'},
+ accommodations:{accommodationReadAloud:'Read directions aloud',accommodationTime:'Extended time',accommodationBreaks:'Movement breaks',accommodationClutter:'Reduce visual clutter',accommodationCheck:'Frequent understanding checks'}
+};
 let lessonOverviewPagination={batchId:'',page:1};
 function alphabeticalStudents(list=students){return list.slice().sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base',numeric:true}))}
 function alphabeticalIds(ids){return ids.slice().sort((a,b)=>getStudent(a).name.localeCompare(getStudent(b).name,'en',{sensitivity:'base',numeric:true}))}
@@ -13,7 +19,7 @@ function gradeLabel(n){return +n===0?'Kindergarten':'Grade '+n}
 function materialLabel(kind){return kind==='assessment'?'Assessment':kind==='lesson'?'Lesson plan':'Assignment'}
 function createLessonDraft(domain='reading',context='',studentIds=[]){
  const d=lessonDefaults[domain],grade=studentIds.length?getStudent(studentIds[0]).grade:3;
- const draft={id:uid('draft'),domain,grade,title:d.title,source:d.source,change:/one step|one direction/i.test(context)?'Show one instruction at a time':d.change,context,a:d.a,b:d.b,directionsA:d.directionsA,directionsB:d.directionsB,custom:false,studentIds:alphabeticalIds(studentIds.filter(id=>lessonGoalsFor(id,domain).length)),objectiveIds:{},kind:'assignment',withVariations:false,questions:3,topic:'',instructions:'',duration:'45',language:'English',refinements:{standards:false,objectives:true,vocabulary:false,video:false,audio:false,activitySheet:false},theme:'low-stimulation'};
+ const draft={id:uid('draft'),domain,grade,title:d.title,source:d.source,change:/one step|one direction/i.test(context)?'Show one instruction at a time':d.change,context,a:d.a,b:d.b,directionsA:d.directionsA,directionsB:d.directionsB,custom:false,studentIds:alphabeticalIds(studentIds.filter(id=>lessonGoalsFor(id,domain).length)),objectiveIds:{},kind:'assignment',withVariations:false,questions:3,topic:'',instructions:'',duration:'45',language:'English',refinements:{standards:false,objectives:true,vocabulary:false,video:false,audio:false,activitySheet:false},theme:'low-stimulation',adaptation:{grade:String(grade),subject:domain==='math'?'math':'ela',language:'English',proficiency:'',readingLevel:'',masteryLevel:'',modality:'',otherNeeds:''}};
  for(const id of draft.studentIds)draft.objectiveIds[id]=defaultLessonObjective(id,domain)?.id;
  return draft;
 }
@@ -31,7 +37,10 @@ function draftContext(form){return {form,popup:form?.dataset?.assignmentSetup===
 function preserveDraftInputs(model,form){
  if(!model||!form)return;
  for(const key of ['title','source','kind','change','topic','instructions','duration','language']){const input=form.querySelector?.(`[name="${key}"]`);if(input)model[key]=input.value;}
-
+ if(model.workflow==='adapt'){
+  ensureLessonWizardDefaults(model);const grade=form.querySelector?.('[name="adaptGrade"]'),subject=form.querySelector?.('[name="adaptSubject"]');
+  if(grade)model.adaptation.grade=grade.value;if(subject)model.adaptation.subject=subject.value;
+ }
 }
 function redrawDraft(ctx){if(ctx.popup)renderDraftingModal();else render()}
 function handleAssignmentChange(input){
@@ -59,17 +68,28 @@ function submitAssignmentSetup(values,form){
 function ensureLessonWizardDefaults(draft){
  draft.topic ??='';draft.instructions ??='';draft.duration ||= '45';draft.language ||= 'English';draft.theme ||= 'low-stimulation';
  draft.refinements={standards:false,objectives:true,vocabulary:false,video:false,audio:false,activitySheet:false,...draft.refinements};
+ draft.adaptation={grade:String(draft.grade??3),subject:draft.domain==='math'?'math':'ela',language:draft.language||'English',proficiency:'',readingLevel:'',masteryLevel:'',modality:'',otherNeeds:'',...draft.adaptation};
+ if(!adaptationSubjects[draft.adaptation.subject])draft.adaptation.subject=draft.domain==='math'?'math':'ela';
+ for(const group of Object.values(adaptationNeedOptions))for(const key of Object.keys(group))draft.adaptation[key]=!!draft.adaptation[key];
  return draft;
 }
-function lessonWizardSteps(active){
- const steps=[['topic','Topic'],['refine','Refine'],['theme','Theme']],current=steps.findIndex(([key])=>key===active);
+function lessonWizardSteps(active,draft=lesson){
+ const steps=draft?.workflow==='adapt'?[['topic','Lesson'],['refine','Student needs'],['theme','Review']]:[['topic','Topic'],['refine','Refine'],['theme','Theme']],current=steps.findIndex(([key])=>key===active);
  return `<nav class="lesson-wizard-steps" aria-label="Lesson creation steps">${steps.map(([key,label],i)=>`${i?'<span class="lesson-step-line" aria-hidden="true"></span>':''}${i<current?`<a href="#studio/${key}" class="lesson-step complete"><span>${i+1}</span><strong>${label}</strong></a>`:`<span class="lesson-step ${i===current?'active':''}" ${i===current?'aria-current="step"':''}><span>${i+1}</span><strong>${label}</strong></span>`}`).join('')}</nav>`;
 }
 function lessonPlanUploadField(draft){
  const upload=draft.upload,required=draft.workflow==='adapt';
  return `<section class="lesson-source"><div class="lesson-source-heading"><div><h2>${required?'Add your class lesson':'Add a lesson or resource'}</h2><p>${required?'Upload the lesson you want to personalize.':'Optional · Give Clearpath more context for the lesson.'}</p></div></div><div class="lesson-plan-drop ${upload?'has-file':''}">${upload?`${icon('plan')}<div><strong>${esc(upload.name)}</strong><small>${lessonFileSize(upload.size)}</small></div><button type="button" class="text-btn" data-action="remove-lesson-plan">Remove</button>`:`${icon('upload')}<h3>Drop a file here or choose from your device</h3><p>PDF, Word, PowerPoint, TXT, or RTF · Up to 20 MB</p><button type="button" class="btn" data-action="choose-lesson-plan">Choose file</button>`}</div><input id="lesson-plan-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.rtf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden><div id="lesson-upload-error" aria-live="polite"></div></section>`;
 }
+function adaptationOptions(options,selected){return options.map(([value,label])=>`<option value="${esc(value)}" ${selected===value?'selected':''}>${esc(label)}</option>`).join('')}
+function adaptationGradeOptions(selected){return Array.from({length:13},(_,grade)=>[String(grade),gradeLabel(grade)]).map(([value,label])=>`<option value="${value}" ${String(selected)===value?'selected':''}>${label}</option>`).join('')}
+function adaptLessonTopicView(draft){
+ ensureLessonWizardDefaults(draft);ensureAutomaticLessonTargets(draft);
+ const selected=draft.studentIds.length,missing=draft.studentIds.filter(id=>!objectiveForDraft(draft,id)),a=draft.adaptation;
+ return `<div class="lesson-wizard adapt-workflow">${lessonWizardSteps('topic',draft)}<header class="lesson-wizard-heading"><p class="eyebrow">Adapt a class lesson</p><h1>Add the lesson and its context</h1></header><form id="lesson-topic-form" class="lesson-wizard-form" data-assignment-setup="page" data-automatic-targets="true"><input type="hidden" name="workflow" value="adapt"><section class="lesson-wizard-card adapt-lesson-card">${lessonPlanUploadField(draft)}<div class="lesson-field"><label for="lesson-topic">Lesson title or topic</label><input id="lesson-topic" name="topic" value="${esc(draft.topic)}" maxlength="160" required placeholder="e.g. Story sequence"></div><div class="adapt-context-grid"><label><span>Grade</span><select name="adaptGrade">${adaptationGradeOptions(a.grade)}</select></label><label><span>Subject</span><select name="adaptSubject">${adaptationOptions(Object.entries(adaptationSubjects),a.subject)}</select></label><label><span>Length</span><select name="duration"><option value="30" ${draft.duration==='30'?'selected':''}>30 minutes</option><option value="45" ${draft.duration==='45'?'selected':''}>45 minutes</option><option value="60" ${draft.duration==='60'?'selected':''}>60 minutes</option></select></label></div><div class="lesson-field lesson-students-field"><h2>Students</h2>${assignmentStudents(draft,'lesson')}${missing.length?`<div class="selection-warning" role="status">${esc(missing.map(id=>getStudent(id).name).join(', '))} ${missing.length===1?'needs':'need'} an approved IEP objective before a lesson can be created.</div>`:''}<p class="adapt-data-note">Uses saved present levels, IEP goals, and latest progress.</p></div><div class="lesson-field"><label for="lesson-instructions">What must stay the same? <span>Optional</span></label><textarea id="lesson-instructions" name="instructions" rows="3" maxlength="1600" placeholder="e.g. Keep the learning target and group discussion">${esc(draft.instructions)}</textarea></div></section><div id="lesson-topic-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio">Cancel</a><button class="btn primary" type="submit" ${!selected||missing.length?'disabled':''}>Continue ${icon('arrow')}</button></div></form></div>`;
+}
 function lessonTopicView(draft){
+ if(draft.workflow==='adapt')return adaptLessonTopicView(draft);
  ensureLessonWizardDefaults(draft);ensureAutomaticLessonTargets(draft);
  const selected=draft.studentIds.length,missing=draft.studentIds.filter(id=>!objectiveForDraft(draft,id));
  return `<div class="lesson-wizard">${lessonWizardSteps('topic')}<header class="lesson-wizard-heading"><p class="eyebrow">Create a personalized lesson</p><h1>Choose the topic and students</h1><p>Start with the lesson you need. Clearpath will use each student’s present levels, IEP goals, and latest progress.</p></header><form id="lesson-topic-form" class="lesson-wizard-form" data-assignment-setup="page" data-automatic-targets="true"><input type="hidden" name="workflow" value="${draft.workflow==='adapt'?'adapt':'scratch'}"><section class="lesson-wizard-card"><div class="lesson-field lesson-students-field"><h2>Students</h2>${assignmentStudents(draft,'lesson')}<div class="automatic-sources" aria-label="Student information used for personalization"><span>${icon('check')}Present levels</span><span>${icon('check')}IEP goals</span><span>${icon('check')}Latest progress</span></div>${missing.length?`<div class="selection-warning" role="status">${esc(missing.map(id=>getStudent(id).name).join(', '))} ${missing.length===1?'needs':'need'} an approved IEP objective before a lesson can be created.</div>`:''}</div><div class="lesson-field"><label for="lesson-topic">Lesson topic</label><input id="lesson-topic" name="topic" value="${esc(draft.topic)}" maxlength="160" required placeholder="e.g. The water cycle"></div><div class="lesson-quick-settings"><div class="lesson-setting-static"><span>Grade</span><strong>${esc(draftGradeLabel(draft))}</strong></div><label><span>Length</span><select name="duration"><option value="30" ${draft.duration==='30'?'selected':''}>30 minutes</option><option value="45" ${draft.duration==='45'?'selected':''}>45 minutes</option><option value="60" ${draft.duration==='60'?'selected':''}>60 minutes</option></select></label><label><span>Language</span><select name="language"><option ${draft.language==='English'?'selected':''}>English</option><option ${draft.language==='Spanish'?'selected':''}>Spanish</option></select></label></div><div class="lesson-field"><label for="lesson-instructions">Specific instructions <span>Optional</span></label><textarea id="lesson-instructions" name="instructions" rows="4" maxlength="1600" placeholder="What should the lesson emphasize?">${esc(draft.instructions)}</textarea></div>${lessonPlanUploadField(draft)}</section><div id="lesson-topic-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio">Cancel</a><button class="btn primary" type="submit" ${!selected||missing.length?'disabled':''}>Continue ${icon('arrow')}</button></div></form></div>`;
@@ -78,7 +98,21 @@ function lessonRefineOption(key,title,description,iconName){
  const checked=!!lesson.refinements[key];
  return `<label class="lesson-refine-option ${checked?'selected':''}"><input type="checkbox" name="${key}" ${checked?'checked':''}><span class="lesson-option-icon">${icon(iconName)}</span><span><strong>${esc(title)}</strong><small>${esc(description)}</small></span><span class="lesson-option-check" aria-hidden="true">${checked?icon('check'):''}</span></label>`;
 }
+function adaptationCheckboxes(group){
+ const a=lesson.adaptation;
+ return `<div class="adapt-choice-list">${Object.entries(adaptationNeedOptions[group]).map(([key,label])=>`<label><input type="checkbox" name="${key}" ${a[key]?'checked':''}><span>${esc(label)}</span></label>`).join('')}</div>`;
+}
+function adaptStudentNeedsView(draft){
+ ensureLessonWizardDefaults(draft);const a=draft.adaptation;
+ const languages=[['English','English'],['Spanish','Spanish'],['Bilingual English and Spanish','Bilingual English and Spanish'],['Other','Other']];
+ const proficiency=[['','Not specified'],['emerging','Emerging'],['developing','Developing'],['expanding','Expanding'],['bridging','Bridging']];
+ const reading=[['','Not specified'],['emergent','Emergent'],['developing','Developing'],['transitional','Transitional'],['independent','Independent']];
+ const mastery=[['','Not specified'],['far-below','Far below grade level'],['approaching','Approaching grade level'],['at-grade','At grade level'],['above','Above grade level']];
+ const modalities=[['','Not specified'],['visual','Visual'],['auditory','Auditory'],['kinesthetic','Kinesthetic'],['reading-writing','Reading and writing']];
+ return `<div class="lesson-wizard adapt-workflow">${lessonWizardSteps('refine',draft)}<header class="lesson-wizard-heading"><p class="eyebrow">Step 2 of 3</p><h1>Choose student supports</h1><p>Add only what matters for this lesson. Saved IEP and progress information is already included.</p></header><form id="lesson-refine-form" class="lesson-wizard-form"><div class="adapt-needs-list"><details class="adapt-needs-section" open><summary><span>Language &amp; communication</span>${icon('down')}</summary><div class="adapt-needs-body"><div class="adapt-field-grid"><label><span>Instruction language</span><select name="adaptLanguage">${adaptationOptions(languages,a.language)}</select></label><label><span>Language proficiency</span><select name="proficiency">${adaptationOptions(proficiency,a.proficiency)}</select></label></div><fieldset><legend>Communication supports</legend>${adaptationCheckboxes('communication')}</fieldset></div></details><details class="adapt-needs-section"><summary><span>Academic support</span>${icon('down')}</summary><div class="adapt-needs-body"><div class="adapt-field-grid"><label><span>Reading level</span><select name="readingLevel">${adaptationOptions(reading,a.readingLevel)}</select></label><label><span>Content mastery</span><select name="masteryLevel">${adaptationOptions(mastery,a.masteryLevel)}</select></label></div><fieldset><legend>Scaffolds</legend>${adaptationCheckboxes('academic')}</fieldset></div></details><details class="adapt-needs-section"><summary><span>Learning accommodations</span>${icon('down')}</summary><div class="adapt-needs-body"><div class="adapt-field-grid one-column"><label><span>Preferred learning modality</span><select name="modality">${adaptationOptions(modalities,a.modality)}</select></label></div><fieldset><legend>Accommodations</legend>${adaptationCheckboxes('accommodations')}</fieldset></div></details></div><div class="adapt-other-needs"><label for="adapt-other-needs">Anything else? <span>Optional</span></label><input id="adapt-other-needs" name="otherNeeds" value="${esc(a.otherNeeds)}" maxlength="300" placeholder="Add a support specific to this lesson"></div><div id="lesson-refine-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio/topic">Back</a><button class="btn primary" type="submit">Review ${icon('arrow')}</button></div></form></div>`;
+}
 function lessonRefineView(draft){
+ if(draft.workflow==='adapt')return adaptStudentNeedsView(draft);
  ensureLessonWizardDefaults(draft);
  return `<div class="lesson-wizard">${lessonWizardSteps('refine')}<header class="lesson-wizard-heading"><p class="eyebrow">Step 2 of 3</p><h1>Refine your lesson</h1><p>Everything here is optional. Choose only what would help your students.</p></header><form id="lesson-refine-form" class="lesson-wizard-form"><section class="lesson-refine-group" aria-labelledby="refine-lesson-title"><h2 id="refine-lesson-title">Lesson</h2>${lessonRefineOption('standards','Align to standards','Connect the lesson to relevant grade-level standards.','book')}${lessonRefineOption('objectives','Learning goals and objectives','Include clear, student-friendly outcomes.','target')}${lessonRefineOption('vocabulary','Key vocabulary list','Highlight the words students need for this lesson.','note')}</section><section class="lesson-refine-group" aria-labelledby="refine-resources-title"><h2 id="refine-resources-title">Resources</h2>${lessonRefineOption('video','Video suggestion','Include a relevant classroom-safe video suggestion.','video')}${lessonRefineOption('audio','Audio activity','Add a short listening activity.','message')}${lessonRefineOption('activitySheet','Activity sheet','Include a print-ready practice activity.','print')}</section><div class="lesson-wizard-actions"><a class="btn" href="#studio/topic">Back</a><button class="btn primary" type="submit">Continue ${icon('arrow')}</button></div></form></div>`;
 }
@@ -87,7 +121,22 @@ function lessonThemeCard(key,title,description){
  const checked=lesson.theme===key;
  return `<label class="lesson-theme-card theme-${key} ${checked?'selected':''}" data-lesson-theme="${key}"><input type="radio" name="theme" value="${key}" ${checked?'checked':''}><span class="theme-selected">${checked?icon('check'):''}</span><span class="theme-name">${esc(title)}</span><span class="theme-sample-title">Explore the water cycle</span><span class="theme-sample-body">Water moves between the land, sky, and living things.</span><span class="theme-sample-accent">Key idea</span><small>${esc(description)}</small></label>`;
 }
+function selectedAdaptationNeeds(a){
+ const labels=[];
+ for(const group of Object.values(adaptationNeedOptions))for(const [key,label] of Object.entries(group))if(a[key])labels.push(label);
+ if(a.modality)labels.push({visual:'Visual learning','auditory':'Auditory learning',kinesthetic:'Kinesthetic learning','reading-writing':'Reading and writing'}[a.modality]);
+ if(a.proficiency)labels.push({emerging:'Emerging language proficiency',developing:'Developing language proficiency',expanding:'Expanding language proficiency',bridging:'Bridging language proficiency'}[a.proficiency]);
+ if(a.readingLevel)labels.push({emergent:'Emergent reading level',developing:'Developing reading level',transitional:'Transitional reading level',independent:'Independent reading level'}[a.readingLevel]);
+ if(a.masteryLevel)labels.push({'far-below':'Far below grade-level mastery',approaching:'Approaching grade-level mastery','at-grade':'At grade-level mastery',above:'Above grade-level mastery'}[a.masteryLevel]);
+ if(a.otherNeeds)labels.push(a.otherNeeds);
+ return labels.filter(Boolean);
+}
+function adaptReviewView(draft){
+ ensureLessonWizardDefaults(draft);const a=draft.adaptation,needs=selectedAdaptationNeeds(a),students=draft.studentIds.map(id=>getStudent(id).name).join(', ');
+ return `<div class="lesson-wizard adapt-workflow">${lessonWizardSteps('theme',draft)}<header class="lesson-wizard-heading"><p class="eyebrow">Step 3 of 3</p><h1>Review the adaptation</h1></header><form id="lesson-theme-form" class="lesson-wizard-form"><input type="hidden" name="theme" value="low-stimulation"><div class="adapt-review"><section><h2>Class lesson</h2><dl><div><dt>File</dt><dd>${esc(draft.upload?.name||'No file')}</dd></div><div><dt>Topic</dt><dd>${esc(draft.topic)}</dd></div><div><dt>Context</dt><dd>${esc(gradeLabel(Number(a.grade)))} · ${esc(adaptationSubjects[a.subject]||'Other')} · ${esc(draft.duration)} minutes</dd></div></dl></section><section><h2>Students</h2><p>${esc(students)}</p><small>Uses each student’s present levels, IEP goals, and latest progress.</small></section><section><h2>Student needs</h2>${needs.length?`<ul>${needs.map(label=>`<li>${esc(label)}</li>`).join('')}</ul>`:'<p>No additional supports selected. Clearpath will use the supports already saved for each student.</p>'}</section>${draft.instructions?`<section><h2>Keep from the original</h2><p>${esc(draft.instructions)}</p></section>`:''}</div><div id="lesson-theme-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio/refine">Back</a><button class="btn primary" type="submit">Generate adaptations ${icon('spark')}</button></div></form></div>`;
+}
 function lessonThemeView(draft){
+ if(draft.workflow==='adapt')return adaptReviewView(draft);
  ensureLessonWizardDefaults(draft);
  return `<div class="lesson-wizard">${lessonWizardSteps('theme')}<header class="lesson-wizard-heading"><p class="eyebrow">Step 3 of 3</p><h1>Choose a learning-friendly theme</h1><p>Select a visual direction for this draft. These cards are previews only.</p></header><form id="lesson-theme-form" class="lesson-wizard-form"><fieldset class="lesson-theme-grid"><legend class="sr-only">Lesson theme</legend>${lessonThemeCard('low-stimulation','Low stimulation','Muted color, quiet spacing, and fewer visual distractions.')}${lessonThemeCard('dyslexia','Dyslexia','Readable type, generous spacing, and clear text structure.')}${lessonThemeCard('low-vision','Low vision','Large type and strong contrast for easier scanning.')}${lessonThemeCard('adhd','ADHD','Short sections, clear cues, and visible next steps.')}</fieldset><p class="theme-note">Theme previews are illustrative. Your lesson content will remain editable before you use it.</p><div id="lesson-theme-error" aria-live="polite"></div><div class="lesson-wizard-actions"><a class="btn" href="#studio/refine">Back</a><button class="btn primary" type="submit">Generate lessons ${icon('spark')}</button></div></form></div>`;
 }
@@ -98,16 +147,30 @@ function submitLessonTopic(values){
  if(!draftObjectivesComplete(lesson))return formError('lesson-topic-error','Each student needs an approved IEP objective before a lesson can be created.');
  if(!topic)return formError('lesson-topic-error','Add a lesson topic to continue.');
  if(lesson.workflow==='adapt'&&!lesson.upload)return formError('lesson-topic-error','Add the class lesson you want to personalize.');
+ if(lesson.workflow==='adapt'){
+  const grade=Number(values.adaptGrade??lesson.adaptation.grade),subject=String(values.adaptSubject??lesson.adaptation.subject);
+  if(!Number.isInteger(grade)||grade<0||grade>12)return formError('lesson-topic-error','Choose a grade.');
+  if(!adaptationSubjects[subject])return formError('lesson-topic-error','Choose a subject.');
+  Object.assign(lesson.adaptation,{grade:String(grade),subject});
+ }
  Object.assign(lesson,{topic,instructions,duration:['30','45','60'].includes(values.duration)?values.duration:lesson.duration,language:['English','Spanish'].includes(values.language)?values.language:lesson.language,title:topic,kind:'lesson',studentPickerOpen:false});
  state.lesson=structuredClone(lesson);persist();navigate('studio/refine');
 }
 function submitLessonRefine(values){
  if(!lesson)return;ensureLessonWizardDefaults(lesson);
+ if(lesson.workflow==='adapt'){
+  const a=lesson.adaptation,allowed={language:['English','Spanish','Bilingual English and Spanish','Other'],proficiency:['','emerging','developing','expanding','bridging'],readingLevel:['','emergent','developing','transitional','independent'],masteryLevel:['','far-below','approaching','at-grade','above'],modality:['','visual','auditory','kinesthetic','reading-writing']};
+  a.language=allowed.language.includes(values.adaptLanguage)?values.adaptLanguage:a.language;
+  for(const key of ['proficiency','readingLevel','masteryLevel','modality'])a[key]=allowed[key].includes(values[key])?values[key]:'';
+  for(const group of Object.values(adaptationNeedOptions))for(const key of Object.keys(group))a[key]=values[key]!==undefined&&values[key]!==false;
+  a.otherNeeds=String(values.otherNeeds||'').trim().slice(0,300);state.lesson=structuredClone(lesson);persist();navigate('studio/theme');return;
+ }
  for(const key of Object.keys(lesson.refinements))lesson.refinements[key]=values[key]!==undefined&&values[key]!==false;
  state.lesson=structuredClone(lesson);persist();navigate('studio/theme');
 }
 function submitLessonTheme(values){
  if(!lesson)return;ensureLessonWizardDefaults(lesson);
+ if(lesson.workflow==='adapt'){lesson.theme='low-stimulation';state.lesson=structuredClone(lesson);persist();beginLessonGeneration();return;}
  if(!lessonThemeLabels[values.theme])return formError('lesson-theme-error','Choose a theme to continue.');
  lesson.theme=values.theme;state.lesson=structuredClone(lesson);persist();beginLessonGeneration();
 }
@@ -211,12 +274,14 @@ function lessonPresentLevel(s,g){
 }
 function buildPersonalizedLessonHTML(d){
  const id=d.studentIds[0],s=getStudent(id),g=goalForDraft(d,id),o=objectiveForDraft(d,id),evidence=milestoneEvidence(s,o),latest=evidence[evidence.length-1],guidance=guidanceFor(s);
- const supports=guidance.length?guidance.map(item=>item.step||`${item.title}. ${item.detail}`):['Use the student’s usual accommodations.','Present one clear direction, then check understanding before continuing.'];
+ const selected=d.workflow==='adapt'?selectedAdaptationNeeds(d.adaptation||{}):[],saved=guidance.map(item=>item.step||`${item.title}. ${item.detail}`),supports=[...new Set([...selected,...saved])];
+ if(!supports.length)supports.push('Use the student’s usual accommodations.','Present one clear direction, then check understanding before continuing.');
  const baseline=lessonPresentLevel(s,g),source=d.workflow==='adapt'?`Adapted from the uploaded class lesson: ${d.upload?.name||'class lesson plan'}.`:'Created from the student information currently saved in Clearpath.';
+ const classContext=d.workflow==='adapt'?`${gradeLabel(Number(d.adaptation?.grade??d.grade))} · ${adaptationSubjects[d.adaptation?.subject]||domainNames[d.domain]} · ${d.adaptation?.language||d.language}`:'';
  const data=latest?`The latest progress check was ${latest.score}% independent accuracy on ${formatDate(latest.date)}.`:'No recent progress check is available; begin with a brief understanding check.';
  const measurement=g?.measurement?.method||defaultMeasures[d.domain]||'brief teacher-recorded check';
  const steps=d.workflow==='adapt'?[`Open with the same learning target and core activity as the class lesson.`,`Preview ${o?.skill||g?.title||'the target skill'} in a short, concrete example.`,`Teach the class activity using the personalized supports below.`,`End with a brief independent check aligned to the student’s IEP objective.`]:[`Name the learning target in student-friendly language and connect it to prior learning.`,`Model one example of ${o?.skill||g?.title||'the target skill'}.`,`Guide practice with the personalized supports below.`,`Fade prompts and collect a short independent response.`];
- return sanitizeRichHTML(`<h2>${esc(d.title)}</h2><p><strong>Student:</strong> ${esc(s.name)} &nbsp; <strong>Grade:</strong> ${esc(gradeLabel(s.grade))}</p><p><strong>Source:</strong> ${esc(source)}</p><h3>Instructional focus</h3><p><strong>IEP goal:</strong> ${esc(g?.content||g?.title||'Review the student’s current IEP goal.')}</p><p><strong>Current objective:</strong> ${esc(o?.skill||'Review the next approved objective.')}</p><h3>What Clearpath considered</h3><p><strong>Present levels:</strong> ${esc(baseline)}</p><p><strong>Latest data:</strong> ${esc(data)}</p><h3>Lesson sequence</h3><ol>${steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><h3>Personalized instruction</h3><ul>${supports.map(step=>`<li>${esc(step)}</li>`).join('')}</ul><h3>Quick progress check</h3><p>Use ${esc(measurement)} to record what ${esc(s.name.split(' ')[0])} can do independently. Keep prompted responses separate and note which supports were used.</p><h3>Teacher reflection</h3><p>What helped? ________________________________________________</p><p>What should change next time? _________________________________</p>`);
+ return sanitizeRichHTML(`<h2>${esc(d.title)}</h2><p><strong>Student:</strong> ${esc(s.name)} &nbsp; <strong>Grade:</strong> ${esc(gradeLabel(s.grade))}</p>${classContext?`<p><strong>Class lesson:</strong> ${esc(classContext)}</p>`:''}<p><strong>Source:</strong> ${esc(source)}</p><h3>Instructional focus</h3><p><strong>IEP goal:</strong> ${esc(g?.content||g?.title||'Review the student’s current IEP goal.')}</p><p><strong>Current objective:</strong> ${esc(o?.skill||'Review the next approved objective.')}</p><h3>What Clearpath considered</h3><p><strong>Present levels:</strong> ${esc(baseline)}</p><p><strong>Latest data:</strong> ${esc(data)}</p><h3>Lesson sequence</h3><ol>${steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><h3>Personalized instruction</h3><ul>${supports.map(step=>`<li>${esc(step)}</li>`).join('')}</ul><h3>Quick progress check</h3><p>Use ${esc(measurement)} to record what ${esc(s.name.split(' ')[0])} can do independently. Keep prompted responses separate and note which supports were used.</p><h3>Teacher reflection</h3><p>What helped? ________________________________________________</p><p>What should change next time? _________________________________</p>`);
 }
 function buildAssignmentHTML(d){
  if(d.studentIds?.length>1)return sanitizeRichHTML(`<h2>${esc(d.title)}</h2>`+alphabeticalIds(d.studentIds).map(id=>{const model=materialForStudent(d,id),o=objectiveForDraft(d,id);return `<h3>${esc(getStudent(id).name)} · ${esc(domainNames[model.domain])}</h3>${o?`<p>Objective: ${esc(o.skill)}</p>`:''}`+buildStudentAssignmentHTML(model).replace(/^<h2>[\s\S]*?<\/h2>/,'');}).join(''));

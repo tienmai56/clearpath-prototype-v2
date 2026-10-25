@@ -272,6 +272,17 @@ function lessonPresentLevel(s,g){
  const name=s.name.split(' ')[0],fallback={reading:`${name} is working on sequencing events and explaining story details independently.`,math:`${name} is working on choosing operations and solving one-step problems independently.`,writing:`${name} is working on turning complete oral ideas into written sentences independently.`}[g?.domain||s.domain];
  return [saved.summary,example?.summary,saved.baseline,g?.baseline,fallback].find(value=>String(value||'').trim()&&!/^\s*\[/.test(String(value)))||'Review current performance before teaching.';
 }
+function buildVisualAdaptationHTML(d,{s,g,o,source,baseline,data,measurement,supports,classContext}){
+ const patterns={
+  ela:{sequence:[['👀','Look'],['🔢','Put in order'],['🗣️','Tell'],['✏️','Show']],ideas:['First','Next','Last'],task:['Look at the class example.','Number the important parts in order.','Retell the idea using the visual words.']},
+  math:{sequence:[['🔎','Find'],['➕','Choose'],['🧮','Solve'],['✅','Check']],ideas:['What I know','What I need','My plan'],task:['Circle the numbers and the question.','Choose an operation or model.','Solve, then check each step.']},
+  science:{sequence:[['👀','Observe'],['🧩','Sort'],['🗣️','Explain'],['✏️','Show']],ideas:['What I notice','What changes','Why it matters'],task:['Look closely at the class example.','Sort the evidence into groups.','Use the visual words to explain the pattern.']},
+  social:{sequence:[['🗺️','Locate'],['🔎','Notice'],['🔗','Connect'],['🗣️','Explain']],ideas:['People','Place','Change'],task:['Find the place or event.','Mark one important detail.','Connect the detail to the lesson idea.']},
+  other:{sequence:[['👀','Preview'],['🧩','Break apart'],['🗣️','Practice'],['✏️','Show']],ideas:['Start','Work','Finish'],task:['Preview the example.','Complete one part at a time.','Show what you learned independently.']}
+ };
+ const pattern=patterns[d.adaptation?.subject]||patterns.other,first=s.name.split(' ')[0],focus=o?.skill||g?.title||d.topic,needs=supports.slice(0,4);
+ return sanitizeRichHTML(`<div class="visual-material"><div class="visual-header"><p>${esc(s.name)} · ${esc(classContext)}</p><h2>${esc(d.topic)} · Visual learning guide</h2><p><strong>Goal:</strong> ${esc(focus)}</p></div><div class="visual-activity"><h3>1. Follow the visual plan</h3><div class="visual-sequence">${pattern.sequence.map(([symbol,label],i)=>`<div class="visual-cue"><strong>${symbol}</strong><p>${i+1}. ${esc(label)}</p></div>`).join('')}</div></div><div class="visual-activity"><h3>2. Organize the key ideas</h3><div class="visual-card-grid">${pattern.ideas.map(label=>`<div class="visual-card"><strong>${esc(label)}</strong><p>Draw, point, or add a short note.</p></div>`).join('')}</div></div><div class="visual-activity"><h3>3. Try the class task</h3><ol>${pattern.task.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><div class="visual-response"><p>My work</p><p>____________________________________________________________</p><p>____________________________________________________________</p></div></div><div class="visual-activity"><h3>4. Show what you know</h3><p>${esc(first)}, complete one example without a prompt. You may point, draw, speak, or write.</p><div class="visual-response"><p>Independent response</p><p>____________________________________________________________</p><p>____________________________________________________________</p></div></div><div class="visual-teacher-note"><h3>Teacher check</h3><p><strong>Starting point:</strong> ${esc(baseline)}</p><p><strong>Latest data:</strong> ${esc(data)}</p><p><strong>Use:</strong> ${esc(needs.join(' · ')||'Saved student accommodations')}</p><p><strong>Record with:</strong> ${esc(measurement)}</p><p><strong>Source:</strong> ${esc(source)}</p></div></div>`);
+}
 function buildPersonalizedLessonHTML(d){
  const id=d.studentIds[0],s=getStudent(id),g=goalForDraft(d,id),o=objectiveForDraft(d,id),evidence=milestoneEvidence(s,o),latest=evidence[evidence.length-1],guidance=guidanceFor(s);
  const selected=d.workflow==='adapt'?selectedAdaptationNeeds(d.adaptation||{}):[],saved=guidance.map(item=>item.step||`${item.title}. ${item.detail}`),supports=[...new Set([...selected,...saved])];
@@ -281,6 +292,7 @@ function buildPersonalizedLessonHTML(d){
  const data=latest?`The latest progress check was ${latest.score}% independent accuracy on ${formatDate(latest.date)}.`:'No recent progress check is available; begin with a brief understanding check.';
  const measurement=g?.measurement?.method||defaultMeasures[d.domain]||'brief teacher-recorded check';
  const steps=d.workflow==='adapt'?[`Open with the same learning target and core activity as the class lesson.`,`Preview ${o?.skill||g?.title||'the target skill'} in a short, concrete example.`,`Teach the class activity using the personalized supports below.`,`End with a brief independent check aligned to the student’s IEP objective.`]:[`Name the learning target in student-friendly language and connect it to prior learning.`,`Model one example of ${o?.skill||g?.title||'the target skill'}.`,`Guide practice with the personalized supports below.`,`Fade prompts and collect a short independent response.`];
+ if(d.workflow==='adapt'&&d.adaptation?.modality==='visual')return buildVisualAdaptationHTML(d,{s,g,o,source,baseline,data,measurement,supports,classContext});
  return sanitizeRichHTML(`<h2>${esc(d.title)}</h2><p><strong>Student:</strong> ${esc(s.name)} &nbsp; <strong>Grade:</strong> ${esc(gradeLabel(s.grade))}</p>${classContext?`<p><strong>Class lesson:</strong> ${esc(classContext)}</p>`:''}<p><strong>Source:</strong> ${esc(source)}</p><h3>Instructional focus</h3><p><strong>IEP goal:</strong> ${esc(g?.content||g?.title||'Review the student’s current IEP goal.')}</p><p><strong>Current objective:</strong> ${esc(o?.skill||'Review the next approved objective.')}</p><h3>What Clearpath considered</h3><p><strong>Present levels:</strong> ${esc(baseline)}</p><p><strong>Latest data:</strong> ${esc(data)}</p><h3>Lesson sequence</h3><ol>${steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol><h3>Personalized instruction</h3><ul>${supports.map(step=>`<li>${esc(step)}</li>`).join('')}</ul><h3>Quick progress check</h3><p>Use ${esc(measurement)} to record what ${esc(s.name.split(' ')[0])} can do independently. Keep prompted responses separate and note which supports were used.</p><h3>Teacher reflection</h3><p>What helped? ________________________________________________</p><p>What should change next time? _________________________________</p>`);
 }
 function buildAssignmentHTML(d){
@@ -309,10 +321,13 @@ function buildStudentAssignmentHTML(d){
 // Keep only simple document formatting. Never retain attributes, scripts, embeds or links.
 function sanitizeRichHTML(value){
  const allowed=new Set(['p','div','br','h1','h2','h3','strong','b','em','i','u','ol','ul','li','blockquote']);
+ const allowedClasses=new Set(['visual-material','visual-header','visual-activity','visual-sequence','visual-cue','visual-card-grid','visual-card','visual-response','visual-teacher-note']);
  const raw=String(value||'').replace(/<!--[\s\S]*?-->/g,'').replace(/<(script|style|iframe|object|svg|math|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,'');
  return (raw.match(/<[^>]*>|[^<]+|</g)||[]).map(token=>{
   if(!token.startsWith('<'))return token.replace(/>/g,'&gt;');
-  const match=token.match(/^<\s*(\/?)\s*([a-z][a-z0-9]*)\b[^>]*>$/i);if(!match)return '&lt;';const tag=match[2].toLowerCase();return allowed.has(tag)?`<${match[1]?'/':''}${tag}>`:'';
+  const match=token.match(/^<\s*(\/?)\s*([a-z][a-z0-9]*)\b[^>]*>$/i);if(!match)return '&lt;';const tag=match[2].toLowerCase();if(!allowed.has(tag))return '';
+  if(match[1])return `</${tag}>`;const classMatch=token.match(/\bclass\s*=\s*["']([^"']*)["']/i),classes=(classMatch?.[1]||'').split(/\s+/).filter(name=>allowedClasses.has(name));
+  return `<${tag}${classes.length?` class="${classes.join(' ')}"`:''}>`;
  }).join('');
 }
 function richButton(command,label,title){return `<button type="button" class="rich-tool" data-action="rich-format" data-command="${command}" aria-label="${title}" title="${title}">${label}</button>`}

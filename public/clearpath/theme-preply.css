@@ -2,14 +2,14 @@
   --ink: #111111;
   --body: #111111;
   --muted: #686870;
-  --green: #ff2b85;
-  --green-dark: #d80a64;
-  --line: #e8e5e8;
+  --green: #7c3aed;
+  --green-dark: #5b21b6;
+  --line: #e8e5ee;
   --paper: #ffffff;
   --bg: #ffffff;
-  --pink-soft: #fff0f6;
-  --pink-pale: #ffe0ec;
-  --pink-mid: #ff91bb;
+  --pink-soft: #f5f3ff;
+  --pink-pale: #ede9fe;
+  --pink-mid: #c4b5fd;
 }
 
 html,
@@ -142,13 +142,13 @@ input[type="radio"] {
 .lesson-page-button[aria-current="page"] {
   color: #ffffff;
   border-color: var(--green);
-  background: var(--green);
+  background: linear-gradient(135deg, #6d28d9 0%, #9333ea 100%);
 }
 
 .btn.primary:hover,
 .skip:hover {
   border-color: var(--green-dark);
-  background: var(--green-dark);
+  background: linear-gradient(135deg, #5b21b6 0%, #7e22ce 100%);
 }
 
 .btn.soft,
@@ -240,7 +240,7 @@ input[type="radio"] {
 
 .collection-dropzone {
   border-color: var(--pink-mid);
-  background: #fffafd;
+  background: #fcfaff;
 }
 
 .collection-dropzone:hover {
@@ -251,12 +251,12 @@ input[type="radio"] {
 .collection-upload-icon,
 .collection-phone-icon {
   color: var(--green);
-  box-shadow: 0 4px 12px rgba(255, 43, 133, 0.14);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.14);
 }
 
 .collection-phone-row {
   border-color: var(--pink-pale);
-  background: #fffafd;
+  background: #fcfaff;
 }
 
 .collection-document {

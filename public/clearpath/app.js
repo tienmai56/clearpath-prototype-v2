@@ -42,7 +42,7 @@ const icons={
  minus:'<path d="M5 12h14"/>'
 };
 const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${icons[name]||icons.circle}</svg>`;
-const logo='<svg class="brand-mark" viewBox="0 0 34 38" aria-hidden="true"><path d="M17 35V17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M16.8 22C7 22 2 15 4 6c9-1 15 6 12.8 16Z" fill="currentColor"/><path d="M18 16C17 8 23 2 31 3c1 8-5 14-13 13Z" fill="#93ad7a"/></svg>';
+const logo='<svg class="brand-mark" viewBox="0 0 34 38" aria-hidden="true"><path d="M17 35V17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M16.8 22C7 22 2 15 4 6c9-1 15 6 12.8 16Z" fill="currentColor"/><path d="M18 16C17 8 23 2 31 3c1 8-5 14-13 13Z" fill="#c4b5fd"/></svg>';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const TODAY='2026-10-09';
 const STORE_KEY='clearpath-prototype-v1';
